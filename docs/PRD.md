@@ -105,9 +105,25 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - Multi-tenant isolation with PostgreSQL RLS
 - Company creation with RUT validation (Chile) or string identifier (other countries)
 - Company switcher for multiple businesses
+- **Progressive Multi-Location Enhancement:**
+  - Default: 1 company = 1 location (auto-created together)
+  - Company creation form includes first location details (name + address/website)
+  - "+ Add Location" button unlocks multi-location features
+  - Dashboard transforms to show location breakdown when 2nd location added
+  - This approach simplifies MVP for single-location users while supporting growth
 
 **3. Core Dashboards**
-- **Annual Dashboard:** 12 monthly cards with revenue, growth %, performance index
+- **Company Dashboard (Annual View):**
+  - 12 monthly cards with revenue, growth %, performance index
+  - Year selector dropdown (current year default)
+  - Current month visually highlighted
+  - If 2+ locations: Location breakdown panel showing metrics per location
+  - Clickable location cards drill into location-specific view
+- **Location Dashboard (Annual View):**
+  - Only accessible when company has 2+ locations
+  - Breadcrumb: Dashboard > Company > Location
+  - 12 monthly cards filtered to that specific location
+  - Year selector dropdown
 - **Monthly Dashboard:** Deep dive into single month performance
 - **Alert Indicators:** ✅✅⚠️ format for quick health assessment
 - **Drill-down Navigation:** Click any metric to explore deeper
@@ -121,6 +137,11 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - Anonymized sector averages
 - Percentile ranking: "You rank in the 68th percentile"
 - Start with simulated data, transition to real aggregates at 50+ companies/sector
+- **Multi-Level Benchmarking:**
+  - Company-to-company: Compare aggregated performance across all locations
+  - Location-to-location: Compare individual locations within multi-location companies
+  - Within-company: Compare your own locations against each other
+  - Multi-company owners: Compare performance between your own companies
 
 **6. Essential Features**
 - Multi-language support (English/Spanish)
@@ -247,10 +268,17 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 
 **Company Management:**
 - `GET /api/companies` - List user's companies
-- `POST /api/companies` - Create new company
+- `POST /api/companies` - Create new company (auto-creates first location)
 - `GET /api/companies/{id}` - Get company details
 - `PUT /api/companies/{id}` - Update company settings
 - `DELETE /api/companies/{id}` - Soft delete company
+
+**Location Management:**
+- `GET /api/companies/{id}/locations` - List all locations for company
+- `POST /api/companies/{id}/locations` - Add new location to company
+- `GET /api/locations/{id}` - Get location details
+- `PUT /api/locations/{id}` - Update location settings
+- `DELETE /api/locations/{id}` - Soft delete location (requires 2+ locations)
 
 **Data Operations:**
 - `POST /api/data/upload` - CSV upload endpoint
@@ -384,6 +412,14 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - FR2.7: Each company SHALL have isolated data with no cross-contamination
 - FR2.8: Companies SHALL have configurable settings (name, industry, timezone, country)
 
+**Multi-Location Management:**
+- FR2.13: Companies SHALL support 1 to N locations (minimum 1)
+- FR2.14: Company creation form SHALL include first location details (name, address OR website)
+- FR2.15: System SHALL auto-create primary location when company is created
+- FR2.16: Users SHALL add additional locations via "+ Add Location" button in settings
+- FR2.17: Location SHALL have name, address (for physical stores) OR website URL (for web-based businesses)
+- FR2.18: CSV uploads SHALL be tagged to a specific location
+
 **Playground Demo:**
 - FR2.9: System SHALL auto-create demo company on first user login
 - FR2.10: Demo SHALL include 12 months of realistic transaction data
@@ -460,6 +496,24 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - FR4.11: Time slider SHALL allow quick navigation between periods
 - FR4.12: Dashboard URLs SHALL be shareable with proper authentication
 
+**Multi-Location Dashboard (Company View):**
+- FR4.13: Company dashboard SHALL display year-to-date metrics (current year default)
+- FR4.14: Company dashboard SHALL include year selector dropdown to change years
+- FR4.15: Company dashboard SHALL display 12 monthly cards for the selected year
+- FR4.16: Current month card SHALL be visually highlighted
+- FR4.17: If company has 2+ locations, dashboard SHALL show location breakdown panel
+- FR4.18: Location breakdown panel SHALL display aggregated metrics per location for selected time period
+- FR4.19: Location cards SHALL be clickable to navigate to location-specific view
+- FR4.20: Company-level metrics SHALL aggregate (SUM) across all locations
+
+**Multi-Location Dashboard (Location View):**
+- FR4.21: Location view SHALL only be accessible when company has 2+ locations
+- FR4.22: Location dashboard SHALL display breadcrumb: Dashboard > Company > Location
+- FR4.23: Location dashboard SHALL display year-to-date metrics for that specific location
+- FR4.24: Location dashboard SHALL include year selector dropdown
+- FR4.25: Location dashboard SHALL display 12 monthly cards for selected year
+- FR4.26: Location view SHALL filter all metrics to that location only
+
 ### 5. Performance Index & Gamification
 
 **Performance Score Calculation:**
@@ -485,6 +539,12 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - FR6.6: No reverse engineering of individual data SHALL be possible
 - FR6.7: Users SHALL opt-in to contribute data to benchmarks
 - FR6.8: System SHALL use simulated data until critical mass reached
+
+**Multi-Level Benchmarking:**
+- FR6.9: System SHALL support company-to-company benchmarking (aggregate across all locations)
+- FR6.10: System SHALL support location-to-location benchmarking (for multi-location companies)
+- FR6.11: Users owning multiple companies SHALL compare performance between their own companies
+- FR6.12: Users SHALL compare performance between their own locations within same company
 
 ### 7. Localization & Accessibility
 
@@ -634,7 +694,14 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 
 ### Epic Breakdown Required
 
-This PRD contains 74 functional requirements and 60 non-functional requirements that must be decomposed into implementable epics and bite-sized stories optimized for AI-assisted development (200k context limit).
+This PRD contains 90 functional requirements and 60 non-functional requirements that must be decomposed into implementable epics and bite-sized stories optimized for AI-assisted development (200k context limit).
+
+**New Requirements Added (Multi-Location Support):**
+- FR2.13-FR2.18: Multi-location management (6 requirements)
+- FR4.13-FR4.26: Multi-location dashboards (14 requirements)
+- FR6.9-FR6.12: Multi-level benchmarking (4 requirements)
+
+**Progressive Enhancement Strategy:** The multi-location architecture uses progressive disclosure - single-location companies get a simple experience, and multi-location features unlock when a second location is added. This keeps the MVP clean for the majority of users while supporting growth.
 
 **Next Step:** Run `workflow create-epics-and-stories` to create the implementation breakdown.
 
@@ -643,6 +710,8 @@ This PRD contains 74 functional requirements and 60 non-functional requirements 
 **Backend:**
 - FastAPI (Python) - Modern async framework
 - PostgreSQL with Row-Level Security - Multi-tenant isolation
+  - **Database Schema:** `locations` table with `company_id` foreign key
+  - **Aggregation Strategy:** Location-level first, then company roll-ups (SUM across locations)
 - Redis - Caching and background jobs
 - Celery - Async task processing
 - Railway - Deployment platform
@@ -713,7 +782,7 @@ This PRD contains 74 functional requirements and 60 non-functional requirements 
 
 **The network effect moat:** Every new customer makes cross-tenant benchmarking more valuable, creating competitive intelligence no competitor can replicate without our data.
 
-This PRD captures the complete requirements for Ayni - from authentication to analytics, from MVP to moonshot features - providing the foundation for epic breakdown and implementation.
+This PRD captures the complete requirements for Ayni - from authentication to analytics, from MVP to moonshot features - including comprehensive multi-location support with progressive enhancement. It contains 90 functional requirements (including 24 for multi-location architecture) and 60 non-functional requirements, providing the foundation for epic breakdown and implementation.
 
 ---
 
