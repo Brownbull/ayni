@@ -1,73 +1,189 @@
-# React + TypeScript + Vite
+# Ayni - Multi-location Retail Analytics SaaS
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Ayni is a multi-tenant SaaS platform that transforms retail analytics for Chilean and Latin American SMBs.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Backend
+- **FastAPI** - Async web framework
+- **PostgreSQL 17.5** - Database with Row-Level Security
+- **SQLModel** - ORM with async support
+- **Celery 5.5.3** - Background task processing
+- **Redis** - Message broker and caching
+- **fastapi-users 15.0.1** - Authentication (OAuth, JWT)
+- **Python 3.11+** - Required
 
-## React Compiler
+### Frontend
+- **React 19** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool
+- **Tailwind CSS** - Styling
+- **TanStack React Query 5.90.7** - Server state management
+- **Zustand 5.0.8** - UI state management
+- **Recharts 3.4.1** - Charts and visualizations
+- **react-i18next** - Internationalization (Spanish/English)
+- **date-fns** - Date utilities
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Project Structure
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+ayni/
+├── backend/              # FastAPI application
+│   ├── app/
+│   │   ├── api/         # API routes
+│   │   ├── core/        # Config, security, logging
+│   │   ├── models/      # SQLModel models
+│   │   ├── alembic/     # Database migrations
+│   │   └── tests/       # Unit + integration tests
+│   └── pyproject.toml
+├── frontend/            # React application
+│   ├── src/
+│   │   ├── components/  # React components
+│   │   ├── pages/       # Page components
+│   │   ├── api/         # API client
+│   │   ├── hooks/       # Custom hooks
+│   │   ├── store/       # Zustand stores
+│   │   └── utils/       # Utilities
+│   └── package.json
+├── docs/                # Documentation
+└── docker-compose.yml   # Local development
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Prerequisites
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Python ≥3.11
+- Node.js ≥18
+- PostgreSQL 17.5
+- Redis 7.x
+- [uv](https://github.com/astral-sh/uv) (Python package manager)
+
+### Backend Setup
+
+```bash
+# Navigate to backend
+cd backend
+
+# Sync dependencies with uv
+uv sync
+
+# Install gabeda-core from GitHub (CSV processing engine)
+uv pip install git+https://github.com/Brownbull/gabeda_core.git
+
+# Run database migrations
+uv run alembic upgrade head
+
+# Start development server
+uv run uvicorn app.main:app --reload
 ```
+
+The backend will be available at `http://localhost:8000`
+
+API documentation: `http://localhost:8000/docs`
+
+### Frontend Setup
+
+```bash
+# Navigate to frontend
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+The frontend will be available at `http://localhost:5173`
+
+### Docker Development (Optional)
+
+```bash
+# Start all services (PostgreSQL, Redis, Backend, Frontend)
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+## Development Workflow
+
+### Running Tests
+
+**Backend:**
+```bash
+cd backend
+uv run pytest tests/ -v
+uv run pytest --cov=app --cov-report=html
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm run test
+npm run test:e2e  # Playwright E2E tests
+```
+
+### Code Quality
+
+**Backend:**
+```bash
+cd backend
+uv run ruff check .
+uv run mypy .
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm run lint
+```
+
+### Pre-commit Hooks
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Run manually
+pre-commit run --all-files
+```
+
+## Architecture Highlights
+
+- **Multi-tenant Isolation**: PostgreSQL Row-Level Security (RLS)
+- **Async-first**: FastAPI + asyncpg + React Query
+- **Mobile-first**: Responsive design with Tailwind CSS
+- **Chilean Localization**: Date/currency formatting, Spanish/English i18n
+
+## Deployment
+
+- **Backend**: Railway (with managed PostgreSQL)
+- **Frontend**: Render (static site)
+- **CI/CD**: GitHub Actions
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [PRD](docs/PRD.md)
+- [UX Design](docs/ux-design-specification.md)
+
+## Contributing
+
+1. Create a feature branch
+2. Make changes with tests
+3. Run pre-commit hooks
+4. Submit PR
+
+## License
+
+Proprietary - All rights reserved
+
+---
+
+**Version**: 0.1.0
+**Status**: In Development
