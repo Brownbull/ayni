@@ -21,6 +21,11 @@ dependencies = [
     "pydantic-settings<3.0.0,>=2.2.1",
     "sentry-sdk[fastapi]<2.0.0,>=1.40.6",
     "pyjwt<3.0.0,>=2.8.0",
+    "celery[redis]==5.5.3",
+    "redis>=5.0.0",
+    "fastapi-users[sqlalchemy]==15.0.1",
+    # NOTE: gabeda-core from GitHub - install with: uv pip install git+https://github.com/Brownbull/gabeda_core.git
+    # "gabeda-core @ git+https://github.com/Brownbull/gabeda_core.git",
 ]
 
 [tool.uv]
