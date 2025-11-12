@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ayni - Color Theme Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 48px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 60px;
+            font-size: 18px;
+        }
+
+        .themes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 40px;
+            margin-bottom: 60px;
+        }
+
+        .theme-card {
+            background: #111111;
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid #222;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .theme-card:hover {
+            transform: translateY(-4px);
+            border-color: #444;
+        }
+
+        .theme-header {
+            margin-bottom: 30px;
+        }
+
+        .theme-name {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .theme-description {
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+
+        .theme-personality {
+            font-size: 14px;
+            color: #888;
+            font-style: italic;
+        }
+
+        .color-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+        }
+
+        .color-swatch {
+            height: 60px;
+            border-radius: 8px;
+            display: flex;
+            align-items: flex-end;
+            padding: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            transition: transform 0.2s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .color-swatch:hover {
+            transform: scale(1.05);
+        }
+
+        .color-swatch span {
+            background: rgba(0,0,0,0.7);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .components-preview {
+            background: #0a0a0a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .component-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .card {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #333;
+            margin-top: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: #151515;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #2a2a2a;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .percentile-display {
+            background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .percentile-value {
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .percentile-label {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .performance-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: #2a2a2a;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .performance-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 1s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ayni Color Theme Explorer</h1>
+        <p class="subtitle">Choose the visual identity for your competitive business analytics platform</p>
+
+        <div class="themes-grid">
+            <!-- Theme 1: Esports Pro -->
+            <div class="theme-card">
+                <div class="theme-header">
+                    <div class="theme-name" style="color: #8b5cf6;">Theme 1: Esports Pro</div>
+                    <div class="theme-description">Gaming-inspired with purple/violet accents. Professional yet energetic.</div>
+                    <div class="theme-personality">Best for: Creating competitive drive, appealing to younger entrepreneurs</div>
+                </div>
+
+                <div class="color-section">
+                    <div class="section-title">Core Palette</div>
+                    <div class="color-grid">
+                        <div class="color-swatch" style="background: #8b5cf6; color: white;">
+                            <span>#8b5cf6</span>
+                        </div>
+                        <div class="color-swatch" style="background: #7c3aed; color: white;">
+                            <span>#7c3aed</span>
+                        </div>
+                        <div class="color-swatch" style="background: #a78bfa; color: black;">
+                            <span>#a78bfa</span>
+                        </div>
+                        <div class="color-swatch" style="background: #c4b5fd; color: black;">
+                            <span>#c4b5fd</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="color-section">
+                    <div class="section-title">Performance Tiers</div>
+                    <div class="color-grid">
+                        <div class="color-swatch" style="background: #10b981; color: white;">
+                            <span>Top 10%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #3b82f6; color: white;">
+                            <span>Top 25%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #8b5cf6; color: white;">
+                            <span>Top 50%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #6b7280; color: white;">
+                            <span>Below 50%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="components-preview">
+                    <div class="component-row">
+                        <button class="btn" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white;">Upload Data</button>
+                        <button class="btn" style="background: transparent; border: 2px solid #8b5cf6; color: #8b5cf6;">View Dashboard</button>
+                        <span class="badge" style="background: #10b981; color: white;">↑ 12%</span>
+                        <span class="badge" style="background: #ef4444; color: white;">↓ 5%</span>
+                    </div>
+
+                    <div class="percentile-display" style="--primary-start: #8b5cf6; --primary-end: #7c3aed;">
+                        <div class="percentile-value">68th</div>
+                        <div class="percentile-label">Percentile Ranking</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Theme 2: Data Ops -->
+            <div class="theme-card">
+                <div class="theme-header">
+                    <div class="theme-name" style="color: #0ea5e9;">Theme 2: Data Ops</div>
+                    <div class="theme-description">Professional analytics with cyan/blue foundation. Trust and reliability.</div>
+                    <div class="theme-personality">Best for: Building trust, enterprise feel, data-driven decisions</div>
+                </div>
+
+                <div class="color-section">
+                    <div class="section-title">Core Palette</div>
+                    <div class="color-grid">
+                        <div class="color-swatch" style="background: #0ea5e9; color: white;">
+                            <span>#0ea5e9</span>
+                        </div>
+                        <div class="color-swatch" style="background: #0284c7; color: white;">
+                            <span>#0284c7</span>
+                        </div>
+                        <div class="color-swatch" style="background: #38bdf8; color: black;">
+                            <span>#38bdf8</span>
+                        </div>
+                        <div class="color-swatch" style="background: #7dd3fc; color: black;">
+                            <span>#7dd3fc</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="color-section">
+                    <div class="section-title">Performance Tiers</div>
+                    <div class="color-grid">
+                        <div class="color-swatch" style="background: #22c55e; color: white;">
+                            <span>Top 10%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #0ea5e9; color: white;">
+                            <span>Top 25%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #06b6d4; color: white;">
+                            <span>Top 50%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #71717a; color: white;">
+                            <span>Below 50%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="components-preview">
+                    <div class="component-row">
+                        <button class="btn" style="background: linear-gradient(135deg, #0ea5e9, #0284c7); color: white;">Upload Data</button>
+                        <button class="btn" style="background: transparent; border: 2px solid #0ea5e9; color: #0ea5e9;">View Dashboard</button>
+                        <span class="badge" style="background: #22c55e; color: white;">↑ 12%</span>
+                        <span class="badge" style="background: #f87171; color: white;">↓ 5%</span>
+                    </div>
+
+                    <div class="percentile-display" style="--primary-start: #0ea5e9; --primary-end: #0284c7;">
+                        <div class="percentile-value">68th</div>
+                        <div class="percentile-label">Percentile Ranking</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Theme 3: Power Metrics -->
+            <div class="theme-card">
+                <div class="theme-header">
+                    <div class="theme-name" style="color: #f59e0b;">Theme 3: Power Metrics</div>
+                    <div class="theme-description">Bold amber/orange for energy and action. High visibility dashboards.</div>
+                    <div class="theme-personality">Best for: Action-oriented users, retail energy, quick decisions</div>
+                </div>
+
+                <div class="color-section">
+                    <div class="section-title">Core Palette</div>
+                    <div class="color-grid">
+                        <div class="color-swatch" style="background: #f59e0b; color: white;">
+                            <span>#f59e0b</span>
+                        </div>
+                        <div class="color-swatch" style="background: #ea580c; color: white;">
+                            <span>#ea580c</span>
+                        </div>
+                        <div class="color-swatch" style="background: #fbbf24; color: black;">
+                            <span>#fbbf24</span>
+                        </div>
+                        <div class="color-swatch" style="background: #fcd34d; color: black;">
+                            <span>#fcd34d</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="color-section">
+                    <div class="section-title">Performance Tiers</div>
+                    <div class="color-grid">
+                        <div class="color-swatch" style="background: #16a34a; color: white;">
+                            <span>Top 10%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #f59e0b; color: white;">
+                            <span>Top 25%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #fb923c; color: white;">
+                            <span>Top 50%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #737373; color: white;">
+                            <span>Below 50%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="components-preview">
+                    <div class="component-row">
+                        <button class="btn" style="background: linear-gradient(135deg, #f59e0b, #ea580c); color: white;">Upload Data</button>
+                        <button class="btn" style="background: transparent; border: 2px solid #f59e0b; color: #f59e0b;">View Dashboard</button>
+                        <span class="badge" style="background: #16a34a; color: white;">↑ 12%</span>
+                        <span class="badge" style="background: #dc2626; color: white;">↓ 5%</span>
+                    </div>
+
+                    <div class="percentile-display" style="--primary-start: #f59e0b; --primary-end: #ea580c;">
+                        <div class="percentile-value">68th</div>
+                        <div class="percentile-label">Percentile Ranking</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Theme 4: Emerald Insights -->
+            <div class="theme-card">
+                <div class="theme-header">
+                    <div class="theme-name" style="color: #10b981;">Theme 4: Emerald Insights</div>
+                    <div class="theme-description">Growth-focused green/emerald. Financial success and positive trends.</div>
+                    <div class="theme-personality">Best for: Finance focus, growth mindset, profit optimization</div>
+                </div>
+
+                <div class="color-section">
+                    <div class="section-title">Core Palette</div>
+                    <div class="color-grid">
+                        <div class="color-swatch" style="background: #10b981; color: white;">
+                            <span>#10b981</span>
+                        </div>
+                        <div class="color-swatch" style="background: #059669; color: white;">
+                            <span>#059669</span>
+                        </div>
+                        <div class="color-swatch" style="background: #34d399; color: black;">
+                            <span>#34d399</span>
+                        </div>
+                        <div class="color-swatch" style="background: #6ee7b7; color: black;">
+                            <span>#6ee7b7</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="color-section">
+                    <div class="section-title">Performance Tiers</div>
+                    <div class="color-grid">
+                        <div class="color-swatch" style="background: #10b981; color: white;">
+                            <span>Top 10%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #14b8a6; color: white;">
+                            <span>Top 25%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #06b6d4; color: white;">
+                            <span>Top 50%</span>
+                        </div>
+                        <div class="color-swatch" style="background: #78716c; color: white;">
+                            <span>Below 50%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="components-preview">
+                    <div class="component-row">
+                        <button class="btn" style="background: linear-gradient(135deg, #10b981, #059669); color: white;">Upload Data</button>
+                        <button class="btn" style="background: transparent; border: 2px solid #10b981; color: #10b981;">View Dashboard</button>
+                        <span class="badge" style="background: #10b981; color: white;">↑ 12%</span>
+                        <span class="badge" style="background: #ef4444; color: white;">↓ 5%</span>
+                    </div>
+
+                    <div class="percentile-display" style="--primary-start: #10b981; --primary-end: #059669;">
+                        <div class="percentile-value">68th</div>
+                        <div class="percentile-label">Percentile Ranking</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Comparison Section -->
+        <div class="card" style="background: #0f0f0f; border-color: #2a2a2a;">
+            <h2 style="margin-bottom: 20px; color: #fff;">Dashboard Preview - All Themes</h2>
+
+            <div class="stats-grid">
+                <!-- Theme 1 Stats -->
+                <div class="stat-card" style="border-left: 3px solid #8b5cf6;">
+                    <div class="stat-value" style="color: #8b5cf6;">$125,450</div>
+                    <div class="stat-label">Revenue (Esports)</div>
+                    <div class="performance-bar">
+                        <div class="performance-fill" style="background: linear-gradient(90deg, #8b5cf6, #a78bfa); width: 68%;"></div>
+                    </div>
+                </div>
+
+                <!-- Theme 2 Stats -->
+                <div class="stat-card" style="border-left: 3px solid #0ea5e9;">
+                    <div class="stat-value" style="color: #0ea5e9;">$125,450</div>
+                    <div class="stat-label">Revenue (Data Ops)</div>
+                    <div class="performance-bar">
+                        <div class="performance-fill" style="background: linear-gradient(90deg, #0ea5e9, #38bdf8); width: 68%;"></div>
+                    </div>
+                </div>
+
+                <!-- Theme 3 Stats -->
+                <div class="stat-card" style="border-left: 3px solid #f59e0b;">
+                    <div class="stat-value" style="color: #f59e0b;">$125,450</div>
+                    <div class="stat-label">Revenue (Power)</div>
+                    <div class="performance-bar">
+                        <div class="performance-fill" style="background: linear-gradient(90deg, #f59e0b, #fbbf24); width: 68%;"></div>
+                    </div>
+                </div>
+
+                <!-- Theme 4 Stats -->
+                <div class="stat-card" style="border-left: 3px solid #10b981;">
+                    <div class="stat-value" style="color: #10b981;">$125,450</div>
+                    <div class="stat-label">Revenue (Emerald)</div>
+                    <div class="performance-bar">
+                        <div class="performance-fill" style="background: linear-gradient(90deg, #10b981, #34d399); width: 68%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 30px; padding: 20px; background: #1a1a1a; border-radius: 8px;">
+                <h3 style="margin-bottom: 15px;">Theme Characteristics</h3>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="margin-bottom: 10px; padding-left: 20px; border-left: 3px solid #8b5cf6;">
+                        <strong>Esports Pro:</strong> Gaming aesthetic, competitive drive, younger appeal
+                    </li>
+                    <li style="margin-bottom: 10px; padding-left: 20px; border-left: 3px solid #0ea5e9;">
+                        <strong>Data Ops:</strong> Professional trust, enterprise feel, analytical focus
+                    </li>
+                    <li style="margin-bottom: 10px; padding-left: 20px; border-left: 3px solid #f59e0b;">
+                        <strong>Power Metrics:</strong> Energy and urgency, action-oriented, high visibility
+                    </li>
+                    <li style="margin-bottom: 10px; padding-left: 20px; border-left: 3px solid #10b981;">
+                        <strong>Emerald Insights:</strong> Growth focused, financial success, positive trends
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add click-to-copy functionality for color codes
+        document.querySelectorAll('.color-swatch').forEach(swatch => {
+            swatch.addEventListener('click', function() {
+                const colorCode = this.querySelector('span').textContent;
+                navigator.clipboard.writeText(colorCode).then(() => {
+                    const originalText = this.querySelector('span').textContent;
+                    this.querySelector('span').textContent = 'Copied!';
+                    setTimeout(() => {
+                        this.querySelector('span').textContent = originalText;
+                    }, 1000);
+                });
+            });
+        });
+
+        // Animate performance bars on load
+        window.addEventListener('load', () => {
+            document.querySelectorAll('.performance-fill').forEach(fill => {
+                const width = fill.style.width;
+                fill.style.width = '0';
+                setTimeout(() => {
+                    fill.style.width = width;
+                }, 100);
+            });
+        });
+    </script>
+</body>
+</html>
