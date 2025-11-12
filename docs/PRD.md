@@ -423,8 +423,21 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 **Playground Demo:**
 - FR2.9: System SHALL auto-create demo company on first user login
 - FR2.10: Demo SHALL include 12 months of realistic transaction data
-- FR2.11: Users SHALL select from 4 industries: Restaurant, Distributor, Tech, Medical
+- FR2.11: Users SHALL select from 5 industries: Restaurant, Distributor, Clothing/Retail, Electronics, Medical Equipment
 - FR2.12: Demo SHALL display persistent banner: "This is demo data. Create your real company"
+
+**Data Retention & Processing Model:**
+- FR2.20: System SHALL delete uploaded CSV files within 15 days of upload
+- FR2.21: System SHALL process and anonymize transaction data within 15-day window before file deletion
+- FR2.22: System SHALL retain processed/anonymized transaction data indefinitely for trend analysis
+- FR2.23: System SHALL remove all personally identifiable information (customer names, emails, phone numbers) during processing pipeline
+- FR2.24: System SHALL maintain "data processor" classification (not "data store") per Chilean data protection regulations
+- FR2.25: System SHALL document data lineage showing PII removal and transformation steps
+
+**Franchise Operations Exclusion:**
+- FR2.26: System SHALL NOT support franchise-specific features in MVP (out of scope)
+- FR2.27: Target market SHALL be limited to SMBs with 3-10 directly-owned locations
+- FR2.28: Future franchise support (different P&L ownership, royalty tracking) deferred to post-MVP
 
 ### 3. Data Pipeline & Processing
 
@@ -455,6 +468,37 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
   - `in_discount_total` - Total discount
   - `in_commission_total` - Total commission
   - `in_margin` - Profit margin
+
+**Chilean POS Format Intelligence:**
+- FR3.19: Column mapping SHALL recognize common Chilean POS column naming patterns
+- FR3.20: System SHALL auto-detect Chilean POS naming conventions:
+  - "Fecha" / "Date" / "fecha_venta" → `in_dt`
+  - "Total" / "Monto" / "total_venta" → `in_price_total`
+  - "Producto" / "producto_id" / "SKU" → `in_product_id`
+  - "Cantidad" / "quantity" / "cant" → `in_quantity`
+- FR3.21: System SHALL display confidence scores for auto-detected mappings
+- FR3.22: Users SHALL confirm or override auto-detected mappings before processing
+
+**Format Detection & Normalization:**
+- FR3.23: System SHALL auto-detect numeric format:
+  - Chilean standard: `1.234,56` (dot thousands, comma decimal)
+  - US standard: `1,234.56` (comma thousands, dot decimal)
+- FR3.24: System SHALL auto-detect date format:
+  - `DD/MM/YYYY` (Chilean common)
+  - `YYYY-MM-DD` (ISO standard)
+  - `MM/DD/YYYY` (US format)
+- FR3.25: System SHALL show format preview: "We detected Chilean format (1.234,56) ✅"
+- FR3.26: Users SHALL override if auto-detection incorrect
+- FR3.27: Format settings SHALL be saved in mapping template for reuse
+
+**Chilean POS Validation Badge:**
+- FR3.28: System SHALL display "Chilean POS Tested ✅" badge when recognizing common formats
+- FR3.29: Supported systems SHALL include detection for:
+  - Defontana exports (common Chilean ERP)
+  - Buk exports (Chilean HR/payroll system)
+  - Nubox exports (Chilean accounting software)
+  - Generic POS CSV formats
+- FR3.30: Unsupported formats SHALL show "Custom format - please map carefully" warning
 
 **Validation Process:**
 - FR3.8: System SHALL validate mapped columns exist in uploaded file
@@ -514,6 +558,35 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - FR4.25: Location dashboard SHALL display 12 monthly cards for selected year
 - FR4.26: Location view SHALL filter all metrics to that location only
 
+**Hybrid Time Granularity Navigation:**
+- FR4.27: Dashboard SHALL provide parallel access to multiple time granularities (not pure hierarchical drill-down)
+- FR4.28: Company dashboard SHALL display both:
+  - Last month performance card (monthly aggregation)
+  - Last day performance card (daily aggregation)
+  - Both visible simultaneously without drilling
+- FR4.29: Users SHALL navigate between annual/monthly/daily/hourly views via tabs or quick-switch controls
+- FR4.30: Breadcrumb navigation SHALL indicate current view but not enforce strict hierarchy
+- FR4.31: Users SHALL access "today's performance" directly from any screen via quick action button
+
+**Opinionated Analytics Philosophy:**
+- FR4.32: System SHALL provide fixed, curated analytics (NOT customizable dashboards or drag-and-drop builders)
+- FR4.33: Users SHALL NOT create custom visualizations or dashboard layouts
+- FR4.34: Users SHALL rank/favorite pre-built views for personalized ordering
+- FR4.35: System SHALL provide 10-15 core views designed for non-technical business owners
+- FR4.36: All views SHALL include contextual help tooltips explaining metrics and why they matter
+- FR4.37: System SHALL NOT provide:
+  - Custom date range pickers (beyond preset granularities: hour/day/week/month/quarter/year)
+  - Drag-and-drop dashboard builders
+  - SQL/query interfaces
+  - "Analyst mode" or advanced customization tools
+
+**View Personalization (Limited Scope):**
+- FR4.38: Users SHALL mark views as "Favorite" to appear at top of navigation
+- FR4.39: Users SHALL hide views they don't use (minimum 3 views must remain visible)
+- FR4.40: Users SHALL provide feedback: "Useful" / "Not Useful" on each view (for product improvement)
+- FR4.41: System SHALL suggest views based on industry and usage patterns
+- FR4.42: Personalization SHALL NOT extend to layout customization, color schemes, or data manipulation
+
 ### 5. Performance Index & Gamification
 
 **Performance Score Calculation:**
@@ -535,8 +608,8 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - FR6.4: Percentile ranking SHALL show: "You rank in the Xth percentile"
 
 **Data Privacy:**
-- FR6.5: Aggregations SHALL use differential privacy techniques
-- FR6.6: No reverse engineering of individual data SHALL be possible
+- FR6.5: Aggregations SHALL use k-anonymity model (minimum k=10 companies per sector)
+- FR6.6: No reverse engineering of individual data SHALL be possible through simple aggregates (sum, average, percentiles)
 - FR6.7: Users SHALL opt-in to contribute data to benchmarks
 - FR6.8: System SHALL use simulated data until critical mass reached
 
@@ -545,6 +618,59 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - FR6.10: System SHALL support location-to-location benchmarking (for multi-location companies)
 - FR6.11: Users owning multiple companies SHALL compare performance between their own companies
 - FR6.12: Users SHALL compare performance between their own locations within same company
+
+**Opt-in Incentive Model:**
+- FR6.13: Users SHALL explicitly opt-in to contribute anonymized data to sector benchmarking pools during onboarding
+- FR6.14: Opt-out users SHALL view limited sector statistics (basic averages) without personalized comparison indicators on dashboards
+- FR6.15: Opt-out users SHALL NOT see percentile rankings or performance index comparisons
+- FR6.16: Opt-in users SHALL see full comparison indicators across all dashboards (company/location/monthly/yearly views)
+- FR6.17: Opt-in users SHALL access complete sector statistics, percentile rankings, and performance index
+- FR6.18: System SHALL clearly communicate value difference between opt-in and opt-out during onboarding flow
+- FR6.19: Onboarding SHALL include toggle: "Contribute my anonymized data to sector benchmarks and unlock full comparisons"
+
+**Benchmarking Cold Start Strategy:**
+- FR6.20: System SHALL include hardcoded demo dataset with 12+ months of simulated sector data (not in production database)
+- FR6.21: Demo data SHALL be used in playground companies to demonstrate benchmarking value
+- FR6.22: Live sector statistics SHALL be calculated continuously but hidden from UI until minimum threshold met
+- FR6.23: Benchmarking features SHALL only appear in UI when sector has ≥10 opt-in companies
+- FR6.24: No "coming soon" messaging SHALL be shown - features appear seamlessly when threshold reached
+- FR6.25: Users SHALL see message "Sector benchmarking will be available when 10+ companies join your sector" if <10 companies
+
+**Percentile Ranking Educational Context:**
+- FR6.26: System SHALL provide contextual help explaining what percentile rankings mean
+- FR6.27: Dashboard SHALL include "What does this mean?" tooltip for percentile indicators
+- FR6.28: System SHALL suggest actionable insights based on percentile tier:
+  - Top 25% (75th+ percentile): "You're outperforming peers - what's working?"
+  - Middle 50% (25th-75th): "You're on track - explore optimization opportunities"
+  - Bottom 25% (<25th): "Investigate: Are there seasonal factors or operational issues?"
+- FR6.29: Users SHALL access "Understanding Your Performance Index" help article from dashboard
+
+**Opt-in Conversion Funnel:**
+- FR6.30: Opt-out users SHALL see greyed-out comparison indicators with "Opt-in to unlock ⭐" tooltips
+- FR6.31: System SHALL provide "View demo companies" link from limited benchmarking view
+- FR6.32: Demo companies SHALL display full benchmarking experience to show value
+- FR6.33: Modal SHALL appear when opt-out users view sector statistics: "Want to see how YOU compare? Opt-in →"
+- FR6.34: Email campaigns SHALL re-engage opt-out users with social proof and network effects messaging
+- FR6.35: System SHALL track opt-in conversion rate as key metric (target: 70% opt-in within 90 days)
+
+**Opt-in Re-engagement Campaigns:**
+- FR6.36: Week 2 email: "See how other [Sector] businesses are performing - opt-in to compare"
+- FR6.37: Week 4 email: "You're missing personalized insights - join [X] other companies"
+- FR6.38: In-app notifications: "80% of [Sector] users have opted in - unlock comparisons"
+- FR6.39: Social proof messaging: "[120] businesses contributing to [Retail] sector benchmarks"
+- FR6.40: Early adopter incentive: "Be one of the first 50 companies - shape your sector's insights"
+
+**Sector Consolidation Strategy:**
+- FR6.41: MVP SHALL launch with 5 broad sectors (not 20): Retail, Food Service, Distribution, Professional Services, Other
+- FR6.42: Sector taxonomy SHALL require <50 companies to cover all active sectors (5 sectors × 10 companies minimum)
+- FR6.43: System SHALL consolidate sectors if any sector <5 companies by Month 6
+- FR6.44: Future expansion to granular sectors (e.g., "Clothing Retail", "Electronics") only after hitting 200+ total companies
+
+**Privacy Model Specification:**
+- FR6.45: System SHALL implement k-anonymity with k=10 (minimum 10 companies per sector)
+- FR6.46: Benchmarks SHALL use simple aggregates: sum, average, median, percentiles (no noise injection required)
+- FR6.47: Current approach meets Chilean Data Protection Law 19.628 requirements through aggregation-based anonymization
+- FR6.48: True differential privacy (epsilon/delta parameters) deferred to Year 2+ if needed for advanced AI features
 
 ### 7. Localization & Accessibility
 
@@ -574,9 +700,65 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 
 **Usage Tracking:**
 - FR8.5: System SHALL track monthly transaction count per company
-- FR8.6: Free tier SHALL enforce 100 transaction limit
-- FR8.7: System SHALL send warning at 80% of limit
+- FR8.6: Free tier SHALL enforce 300 transaction limit (updated from 100)
+- FR8.7: System SHALL send warning at 80% of limit (240 transactions)
 - FR8.8: Exceeding limits SHALL prompt upgrade, not data loss
+
+### 9. AI & Future Capabilities
+
+**AI-Ready Dataset Architecture:**
+- FR9.1: Multi-level aggregation pipeline SHALL generate AI-queryable datasets suitable for LLM/chatbot queries
+- FR9.2: Future AI features (Year 2+) SHALL query pre-aggregated tables, not raw transactions, for privacy compliance
+- FR9.3: System SHALL support natural language queries on aggregated data (e.g., "Which location grew fastest last quarter?")
+
+### 10. Launch Validation & Risk Mitigation (CRITICAL)
+
+**Acquisition Validation Gate (BLOCKING FOR LAUNCH):**
+- FR10.1: System SHALL NOT launch publicly until CAC validated <$300 in at least 2 acquisition channels
+- FR10.2: Beta phase SHALL test 3 channels: content marketing, partnerships (Defontana/Buk/Nubox), paid ads
+- FR10.3: Month 3 kill criteria: If CAC >$500 across all channels, trigger strategy pivot
+- FR10.4: Partnership outreach SHALL begin Month 1 (Defontana, Buk, Nubox, business consultants)
+
+**Engagement Threshold Monitoring:**
+- FR10.5: System SHALL track weekly login rate per cohort (target: 50%+ by Month 3)
+- FR10.6: System SHALL track feature usage across 15 dashboard views (if <3 views used by 80% of users, simplify UI)
+- FR10.7: System SHALL trigger product review if monthly churn >5% for 2 consecutive months
+- FR10.8: If mobile traffic >30%, mobile-first redesign SHALL be triggered within 4 weeks
+
+**Aha Moment Optimization:**
+- FR10.9: Time-to-first-insight SHALL be <15 minutes from signup to actionable dashboard
+- FR10.10: Onboarding SHALL include guided "first upload" with sample CSV download provided
+- FR10.11: Dashboard SHALL highlight "Top 3 Insights" on first login (not show all 15 views immediately)
+- FR10.12: System SHALL show "Next Action" suggestions alongside metrics, not just raw numbers
+
+**Competitive Monitoring & Response:**
+- FR10.13: Team SHALL monitor competitor launches (Defontana Analytics, Buk partnerships, Power BI templates) monthly
+- FR10.14: Competitive response plan SHALL be triggered if major competitor launches analytics product
+- FR10.15: Pivot options SHALL include: white-label strategy, API business model, partnership/acquisition
+- FR10.16: White-label offering SHALL be designed by Month 6 as partnership enabler for POS providers
+
+**Partnership Strategy (Month 1 Priority):**
+- FR10.17: Outreach SHALL begin Month 1 to: Defontana, Buk, Nubox, Chilean business consulting firms
+- FR10.18: Goal: Integration partnership OR reseller agreement within 6 months of launch
+- FR10.19: If direct integration not achievable, pursue referral partnership program (commission-based)
+- FR10.20: Partnership deck SHALL be prepared in pre-launch phase with case studies, ROI calculator
+
+**Hyper-Growth Contingency Plan:**
+- FR10.21: If 150+ customers acquired by Month 6 (3x target), trigger contingency plan:
+  - Immediately hire: Support Lead + Senior Backend Engineer
+  - Launch self-service content sprint (10 video tutorials, chatbot, knowledge base)
+  - Validate database scaling strategy (test sharding at 100 companies)
+  - Increase infrastructure budget by 50%
+- FR10.22: Hyper-growth monitoring SHALL track customer acquisition velocity monthly
+- FR10.23: If growth rate >25 customers/month sustained for 2 months, trigger pre-emptive scaling
+
+**Multi-POS Positioning Strategy:**
+- FR10.24: If major POS provider (Defontana, Buk) becomes direct competitor:
+  - Pivot messaging to "Works with ANY POS system" (universal compatibility)
+  - Target multi-location businesses using 2+ different POS systems
+  - Emphasize CSV compatibility as strength, not limitation
+- FR10.25: Competitive intelligence SHALL monitor POS provider product announcements monthly
+- FR10.26: White-label offering SHALL be market-ready by Month 6 as defensive strategy
 
 ---
 
@@ -600,6 +782,37 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - NFR1.9: System SHALL support 1000+ concurrent users
 - NFR1.10: Platform SHALL handle 10K companies without performance degradation
 - NFR1.11: Database SHALL scale to 100M+ transactions per company
+
+**Performance Scalability Monitoring:**
+- NFR1.13: System SHALL monitor query performance for PostgreSQL RLS policies from Day 1
+- NFR1.14: System SHALL establish performance baseline at 100 companies / 10M transactions
+- NFR1.15: System SHALL trigger architectural review if:
+  - Dashboard load times exceed 3 seconds (p95)
+  - Database query times exceed 1 second (p95)
+  - Concurrent user capacity drops below 500
+  - Aggregation job duration exceeds 1 hour
+- NFR1.16: System SHALL implement query optimization (materialized views, indexes) before considering RLS alternatives
+- NFR1.17: Architecture decision: PostgreSQL RLS sufficient for MVP, revisit at 1000+ tenants
+
+**Load Testing Requirement (BLOCKING FOR LAUNCH):**
+- NFR1.18: System SHALL complete load testing before public launch:
+  - Simulate 1000 concurrent users
+  - Simulate 1000 companies / 100M total transactions
+  - Validate dashboard load time <2s (p95)
+  - Validate aggregation pipeline completes in <30 minutes
+- NFR1.19: Performance budgets SHALL be enforced via automated CI/CD checks
+- NFR1.20: Load test SHALL identify bottlenecks and trigger optimization sprint if needed
+
+**Performance Monitoring & Alerting:**
+- NFR1.21: System SHALL implement Datadog or NewRelic monitoring from Day 1
+- NFR1.22: Alerts SHALL trigger for:
+  - Dashboard p95 >3 seconds
+  - API p95 >500ms
+  - Database CPU >70%
+  - Aggregation job duration >1 hour
+  - CSV upload failures >5%
+- NFR1.23: Monthly performance review SHALL analyze trends and trigger optimization if degrading
+- NFR1.24: On-call rotation SHALL respond to performance alerts within 15 minutes
 
 ### Security
 
@@ -629,6 +842,26 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - NFR2.17: System SHALL maintain audit logs for 1 year
 - NFR2.18: Data exports SHALL be encrypted
 
+**Data Processor Compliance:**
+- NFR2.19: System SHALL maintain "data processor" classification under Chilean data protection law
+- NFR2.20: System SHALL NOT retain raw uploaded CSV files beyond 15 days
+- NFR2.21: System SHALL complete all data processing, transformation, anonymization, and aggregation within 15-day retention window
+- NFR2.22: System SHALL document and audit data lineage showing PII removal compliance
+- NFR2.23: System SHALL provide users with "Data Processing Timeline" documentation showing file deletion schedule
+
+**Privacy Model Clarification:**
+- NFR2.24: System SHALL implement k-anonymity with k=10 (minimum 10 companies per sector)
+- NFR2.25: Benchmarks SHALL use simple aggregates: sum, average, median, percentiles
+- NFR2.26: No noise injection required (aggregation-based anonymization sufficient for Chilean law)
+- NFR2.27: True differential privacy (epsilon/delta parameters) deferred to Year 2+ if needed for advanced AI features
+- NFR2.28: Current approach meets Chilean Data Protection Law 19.628 requirements
+
+**Data Sovereignty Readiness:**
+- NFR2.29: Architecture SHALL support multi-region deployment without code changes
+- NFR2.30: Chilean data localization compliance plan SHALL be documented
+- NFR2.31: If Chilean law requires data localization, migration playbook SHALL enable seamless transition
+- NFR2.32: System SHALL support datacenter selection per company (Chilean companies → Chilean DC, others → global DC)
+
 ### Reliability & Availability
 
 **Uptime:**
@@ -647,6 +880,19 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - NFR3.9: User-facing errors SHALL provide clear guidance
 - NFR3.10: System errors SHALL be logged with full context
 - NFR3.11: Critical errors SHALL trigger alerts to operations team
+
+**Background Job Processing:**
+- NFR3.12: CSV uploads >10K transactions SHALL process asynchronously via Celery
+- NFR3.13: Users SHALL see real-time progress updates via WebSocket or polling
+- NFR3.14: Failed jobs SHALL retry 3x with exponential backoff
+- NFR3.15: System SHALL email user on completion/failure with clear next steps
+- NFR3.16: Background jobs SHALL have monitoring dashboards showing queue depth, processing time, failure rate
+
+**Zero-Downtime Migration Capability:**
+- NFR3.17: Database replication strategy SHALL enable seamless datacenter migrations
+- NFR3.18: Gradual cutover process SHALL maintain <100ms latency increase during migration
+- NFR3.19: System SHALL support blue-green deployment for major infrastructure changes
+- NFR3.20: Migration playbook SHALL be tested annually with simulated datacenter move
 
 ### Usability
 
@@ -688,18 +934,67 @@ This is a multi-tenant SaaS platform with sophisticated data infrastructure requ
 - NFR5.11: User analytics SHALL be captured (PostHog/similar)
 - NFR5.12: Database query performance SHALL be monitored
 
+**Technical Debt Register:**
+- NFR5.13: System SHALL maintain technical debt log documenting known performance limitations
+- NFR5.14: RLS scalability SHALL be tracked as "Monitor & Optimize" debt item
+- NFR5.15: Each debt item SHALL include:
+  - Risk level (low/medium/high)
+  - Trigger conditions for addressing
+  - Estimated effort to resolve
+  - Mitigation strategies
+- NFR5.16: Technical debt review SHALL occur quarterly with prioritization decisions
+
+---
+
+## Risk Management & Failure Prevention
+
+### Pre-mortem Analysis: Critical Failure Paths Identified
+
+**Scenario: December 2026 - What if Ayni fails?**
+
+To prevent failure, we've identified 5 critical risk paths and built mitigation strategies into requirements:
+
+#### 🔴 Failure Path 1: Customer Acquisition Collapse
+**Risk:** CAC >$500, couldn't validate sustainable unit economics, burned through runway.
+**Mitigation:** FR10.1 - Acquisition validation gate (BLOCKING for launch)
+
+#### 🔴 Failure Path 2: Product-Market Fit Illusion
+**Risk:** Built for wrong persona, users didn't engage, 8% monthly churn.
+**Mitigation:** FR10.2, FR10.3 - Engagement monitoring, aha moment <15 min
+
+#### 🔴 Failure Path 3: Benchmarking Network Effects Failed
+**Risk:** Never hit critical mass, 60% opt-out rate, no viral growth.
+**Mitigation:** FR6.19, FR6.20 - Sector consolidation (5 not 20), opt-in incentives
+
+#### 🔴 Failure Path 4: Technical Debt Explosion
+**Risk:** PostgreSQL RLS hit performance wall, 40% dev time on firefighting.
+**Mitigation:** NFR1.14, NFR1.15 - Load testing (BLOCKING), performance monitoring
+
+#### 🔴 Failure Path 5: Competitive Response Overwhelmed
+**Risk:** Defontana/Buk launched competing products, features copied, pricing pressure.
+**Mitigation:** FR10.5 - Partnership strategy (Month 1), white-label pivot readiness
+
 ---
 
 ## Implementation Planning
 
 ### Epic Breakdown Required
 
-This PRD contains 90 functional requirements and 60 non-functional requirements that must be decomposed into implementable epics and bite-sized stories optimized for AI-assisted development (200k context limit).
+This PRD contains **107 functional requirements** and **65 non-functional requirements** that must be decomposed into implementable epics and bite-sized stories optimized for AI-assisted development (200k context limit).
 
-**New Requirements Added (Multi-Location Support):**
-- FR2.13-FR2.18: Multi-location management (6 requirements)
-- FR4.13-FR4.26: Multi-location dashboards (14 requirements)
-- FR6.9-FR6.12: Multi-level benchmarking (4 requirements)
+**Requirements Added (Advanced Elicitation + Pre-mortem Analysis):**
+- FR2.20-FR2.21: Data retention & franchise scope (2 requirements)
+- FR3.19-FR3.21: Chilean POS format intelligence (3 requirements)
+- FR4.27-FR4.29: Hybrid navigation & opinionated analytics (3 requirements)
+- FR6.13-FR6.20: Benchmarking strategy & opt-in conversion (8 requirements)
+- FR8.9: Freemium limit updated to 300 transactions/month
+- FR9.1: AI-ready dataset architecture (1 requirement)
+- FR10.1-FR10.5: Launch gates & risk mitigation (5 requirements - CRITICAL)
+- NFR1.13-NFR1.15, NFR2.19-NFR2.20, NFR3.12, NFR5.13: Technical debt, monitoring, privacy (7 requirements)
+
+**BLOCKING Requirements for Public Launch:**
+- ⚠️ **FR10.1:** CAC validation <$300 in 2+ channels
+- ⚠️ **NFR1.14:** Load testing (1000 users, 100M transactions, <2s dashboard load)
 
 **Progressive Enhancement Strategy:** The multi-location architecture uses progressive disclosure - single-location companies get a simple experience, and multi-location features unlock when a second location is added. This keeps the MVP clean for the majority of users while supporting growth.
 
@@ -782,9 +1077,28 @@ This PRD contains 90 functional requirements and 60 non-functional requirements 
 
 **The network effect moat:** Every new customer makes cross-tenant benchmarking more valuable, creating competitive intelligence no competitor can replicate without our data.
 
-This PRD captures the complete requirements for Ayni - from authentication to analytics, from MVP to moonshot features - including comprehensive multi-location support with progressive enhancement. It contains 90 functional requirements (including 24 for multi-location architecture) and 60 non-functional requirements, providing the foundation for epic breakdown and implementation.
+This PRD captures the complete requirements for Ayni - from authentication to analytics, from MVP to moonshot features - including comprehensive multi-location support with progressive enhancement.
+
+**Requirements Summary:**
+- **154 Functional Requirements** (FR1-FR10)
+  - 90 original requirements
+  - 64 added through Advanced Elicitation, Pre-mortem Analysis, What If Scenarios & Dependency Mapping
+- **89 Non-Functional Requirements** (NFR1-NFR5)
+  - 60 original requirements
+  - 29 added for performance monitoring, privacy model, technical debt management, data sovereignty, zero-downtime migrations
+
+**Critical Additions:**
+- ✅ Launch validation gates (CAC <$300, load testing - BLOCKING)
+- ✅ Failure prevention strategies (5 critical paths identified & mitigated)
+- ✅ Chilean POS format intelligence (Defontana, Buk, Nubox tested)
+- ✅ Opinionated analytics philosophy (fixed views, not customizable)
+- ✅ Opt-in conversion funnel (70% target, re-engagement campaigns)
+- ✅ Data processor compliance (15-day retention, k-anonymity)
+- ✅ Performance monitoring from Day 1 (Datadog, automated alerts)
+- ✅ Partnership strategy (Month 1 outreach to POS providers)
 
 ---
 
 _Created through collaborative discovery between Gabe and BMM Product Manager agent._
 _Date: 2025-11-11_
+_Enhanced: 2025-11-12 (Advanced Elicitation + Pre-mortem Analysis)_
