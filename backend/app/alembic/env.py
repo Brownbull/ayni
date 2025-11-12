@@ -30,7 +30,8 @@ target_metadata = SQLModel.metadata
 
 
 def get_url():
-    return str(settings.SQLALCHEMY_DATABASE_URI)
+    # Alembic uses synchronous psycopg driver (not async asyncpg)
+    return str(settings.SQLALCHEMY_DATABASE_URI).replace("+asyncpg", "+psycopg")
 
 
 def run_migrations_offline():

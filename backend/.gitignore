@@ -6,3 +6,11 @@ app.egg-info
 htmlcov
 .cache
 .venv
+
+# PostgreSQL initialization scripts (for local development)
+postgres-init/
+
+# Test/verification scripts (not part of production code)
+test_rls_integration.py
+verify_migration.py
+cleanup_db.py

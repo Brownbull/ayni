@@ -1,7 +1,76 @@
 import uuid
+from datetime import datetime
 
 from pydantic import EmailStr
 from sqlmodel import Field, Relationship, SQLModel
+
+# ============================================================================
+# Multi-Tenant Core Models
+# ============================================================================
+
+
+class Tenant(SQLModel, table=True):
+    """Root tenant table for multi-tenancy isolation via RLS"""
+
+    __tablename__ = "tenants"
+
+    id: int | None = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    users: list["User"] = Relationship(back_populates="tenant", cascade_delete=True)
+    companies: list["Company"] = Relationship(
+        back_populates="tenant", cascade_delete=True
+    )
+
+
+class Company(SQLModel, table=True):
+    """Company table with tenant isolation"""
+
+    __tablename__ = "companies"
+
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenants.id", nullable=False, index=True)
+    name: str = Field(max_length=255, nullable=False)
+    identifier: str | None = Field(default=None, max_length=50)  # RUT for Chile, tax ID
+    country: str = Field(max_length=50, nullable=False)
+    industry: str | None = Field(default=None, max_length=100)
+    timezone: str = Field(default="America/Santiago", max_length=50)
+    opt_in_benchmarking: bool = Field(default=True)
+    is_demo: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    tenant: Tenant | None = Relationship(back_populates="companies")
+    locations: list["Location"] = Relationship(
+        back_populates="company", cascade_delete=True
+    )
+
+
+class Location(SQLModel, table=True):
+    """Location table with tenant-scoped access via company"""
+
+    __tablename__ = "locations"
+
+    id: int | None = Field(default=None, primary_key=True)
+    company_id: int = Field(foreign_key="companies.id", nullable=False, index=True)
+    name: str = Field(max_length=255, nullable=False)
+    address: str | None = Field(default=None)
+    website: str | None = Field(default=None, max_length=255)
+    is_primary: bool = Field(default=False)
+    deleted_at: datetime | None = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    company: Company | None = Relationship(back_populates="locations")
+
+
+# ============================================================================
+# User Models (Extended for Multi-Tenancy)
+# ============================================================================
 
 
 # Shared properties
@@ -42,7 +111,17 @@ class UpdatePassword(SQLModel):
 # Database model, database table inferred from class name
 class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: int | None = Field(default=None, foreign_key="tenants.id", index=True)
     hashed_password: str
+    role: str | None = Field(
+        default="Owner", max_length=50
+    )  # Owner, Manager, Analyst, Viewer
+    email_verified: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    tenant: Tenant | None = Relationship(back_populates="users")
     items: list["Item"] = Relationship(back_populates="owner", cascade_delete=True)
 
 
