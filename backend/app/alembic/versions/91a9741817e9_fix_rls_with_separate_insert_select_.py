@@ -18,7 +18,27 @@ depends_on = None
 
 
 def upgrade():
-    """Create separate policies for SELECT vs INSERT/UPDATE/DELETE operations"""
+    """Create separate policies for SELECT vs INSERT/UPDATE/DELETE operations
+
+    SECURITY NOTE: Why MODIFY policies allow NULL tenant_id
+    ========================================================
+    The MODIFY policies (INSERT/UPDATE/DELETE) permit operations when tenant context is NULL
+    to support:
+    1. Database migrations and initial data seeding (no tenant context available)
+    2. Admin operations and system maintenance scripts
+    3. Testing and development workflows
+
+    APPLICATION-LEVEL PROTECTION: All authenticated API requests MUST validate that
+    user.tenant_id is NOT NULL before setting tenant context (see backend/app/api/deps.py:150-157).
+    This prevents NULL tenant_id from bypassing RLS in production.
+
+    The combination of:
+    - Strict SELECT policies (only show matching tenant data)
+    - Lenient MODIFY policies (allow setup/migrations)
+    - Application validation (reject NULL tenant_id in authenticated requests)
+
+    Provides both operational flexibility AND security guarantees.
+    """
     from sqlalchemy import text
     conn = op.get_bind()
 
@@ -40,6 +60,7 @@ def upgrade():
     '''))
 
     # INSERT/UPDATE/DELETE policy: Allow operations when tenant context matches OR is not set
+    # NOTE: NULL context permitted for migrations/admin ops; app validates tenant_id NOT NULL
     conn.execute(text('''
         CREATE POLICY tenant_isolation_modify ON "user"
         FOR ALL

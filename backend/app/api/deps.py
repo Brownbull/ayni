@@ -1,3 +1,44 @@
+"""
+API Dependencies for Database Sessions and User Authentication
+
+ARCHITECTURAL DECISION: Tenant Context via Dependency Injection (not Middleware)
+================================================================================
+
+This module uses FastAPI dependency injection to set tenant context for RLS policies,
+rather than middleware. This design choice was made for the following reasons:
+
+1. **Per-Request Database Session Scoping**: Dependency injection guarantees tenant
+   context is set on the SAME session that handles subsequent queries. Middleware
+   would need to pass session context across request lifecycle, adding complexity.
+
+2. **Granular Control**: Only authenticated endpoints need tenant context. Dependency
+   injection allows selective application via `CurrentUser = Depends(get_current_user)`.
+   Middleware would run on ALL requests, including public endpoints.
+
+3. **Type Safety**: FastAPI dependencies provide type hints and editor support.
+   get_current_user() returns typed User object with tenant_id accessible to routes.
+
+4. **Testability**: Dependencies are easily mocked in tests. Middleware requires
+   more complex test setup with full request/response cycle simulation.
+
+5. **Explicit Flow**: Tenant context setting is visible in the dependency chain:
+   token → get_current_user() → set_tenant_context() → RLS policies active.
+   With middleware, this flow is implicit and harder to trace.
+
+6. **Error Handling**: Authentication failures (invalid token, inactive user) are
+   handled in the same function that sets context, reducing error handling complexity.
+
+IMPORTANT: While architecture.md shows middleware example for illustration,
+dependency injection is the PREFERRED pattern for FastAPI + SQLAlchemy applications.
+Both approaches correctly enforce tenant isolation; dependency injection does so
+with better ergonomics and type safety.
+
+References:
+- Story 1.2 Implementation: backend/app/api/deps.py:75-113
+- RLS Policies: backend/app/db/rls_policies.sql
+- Test Coverage: backend/tests/test_rls_tenant_isolation.py:204-394
+"""
+
 from collections.abc import AsyncGenerator, Generator
 from typing import Annotated
 
@@ -105,6 +146,15 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    # CRITICAL SECURITY VALIDATION: Ensure tenant_id is never NULL
+    # NULL tenant_id would bypass RLS policies and potentially expose all tenant data
+    # This check prevents catastrophic data leaks (NFR2.11-2.14)
+    if user.tenant_id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="User has no tenant association - data isolation cannot be guaranteed",
+        )
 
     # CRITICAL: Set tenant context for RLS policies
     # All subsequent queries in this session will be filtered by this tenant_id

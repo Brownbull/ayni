@@ -10,7 +10,10 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
 
--- Note: tenants table does not need RLS as it's the root of tenant hierarchy
+-- Note: tenants table does NOT need RLS because:
+--   1. It has no tenant_id column (it IS the tenant definition table)
+--   2. Access control to tenants is managed at the application/API layer
+--   3. RLS is for filtering rows within tenant-scoped tables, not for the tenant registry itself
 
 
 -- ============================================================================
