@@ -40,10 +40,10 @@ workflow_status:
   # Phase 1: Planning
   prd: docs/PRD.md  # agent: pm
   validate-prd: optional  # agent: pm
-  create-ux-design: conditional  # agent: ux-designer
+  create-ux-design: docs/ux-design-specification.md  # agent: ux-designer
 
   # Phase 2: Solutioning
-  architecture: required  # agent: architect
+  architecture: docs/architecture.md  # agent: architect
   validate-architecture: optional  # agent: architect
   solutioning-gate-check: required  # agent: architect
 
