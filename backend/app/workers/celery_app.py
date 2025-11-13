@@ -38,6 +38,10 @@ celery_app.conf.update(
     # Worker settings
     worker_prefetch_multiplier=4,
     worker_max_tasks_per_child=1000,
+    # Monitoring and events (enable for Flower and task tracking)
+    worker_send_task_events=True,
+    task_send_sent_event=True,
+    task_track_started=True,
 )
 
 # Auto-discover tasks from workers.tasks module

@@ -27,6 +27,7 @@ dependencies = [
     "fastapi-users[sqlalchemy]==15.0.1",
     # NOTE: gabeda-core from GitHub - install with: uv pip install git+https://github.com/Brownbull/gabeda_core.git
     # "gabeda-core @ git+https://github.com/Brownbull/gabeda_core.git",
+    "flower>=2.0.1",
 ]
 
 [tool.uv]
