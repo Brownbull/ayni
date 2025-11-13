@@ -121,6 +121,105 @@ docker compose exec backend bash scripts/tests-start.sh -x
 
 When the tests are run, a file `htmlcov/index.html` is generated, you can open it in your browser to see the coverage of the tests.
 
+### Security Testing
+
+The project includes comprehensive security tests to verify multi-tenant isolation and prevent cross-tenant data leaks.
+
+#### Running Security Tests Locally
+
+To run the security audit test suite:
+
+```bash
+cd backend
+uv run pytest tests/security/ -v
+```
+
+This will:
+- Verify RLS (Row-Level Security) policies exist on all tenant tables
+- Test cross-tenant data access prevention
+- Validate JWT token tenant_id enforcement
+- Generate a security audit report at `tests/security/audit-report.md`
+
+#### Security Test Requirements for New Tables
+
+**CRITICAL:** Any new table with `tenant_id` or `company_id` column MUST have:
+
+1. **RLS Enabled:**
+   ```sql
+   ALTER TABLE your_table ENABLE ROW LEVEL SECURITY;
+   ```
+
+2. **Tenant Isolation Policy:**
+   ```sql
+   CREATE POLICY tenant_isolation_policy ON your_table
+   USING (tenant_id = current_setting('app.current_tenant', TRUE)::INTEGER);
+   ```
+
+3. **Security Tests Added:**
+   - Update `tests/security/test_rls_policies.py` to verify RLS on new table
+   - Add cross-tenant isolation tests if needed
+
+#### Security Testing Checklist for Code Reviews
+
+When reviewing code that adds or modifies tenant-scoped tables:
+
+- [ ] Table has `tenant_id` or `company_id` column with proper foreign key
+- [ ] RLS is enabled on the table (`ENABLE ROW LEVEL SECURITY`)
+- [ ] At least one RLS policy exists (check `pg_policies` system catalog)
+- [ ] Security tests added/updated in `tests/security/`
+- [ ] All security tests pass: `uv run pytest tests/security/ -v`
+- [ ] Security audit report shows "SECURE" verdict
+- [ ] No BYPASSRLS privileges granted to application database user
+
+#### CI Pipeline Integration
+
+Security tests run automatically on every push and pull request:
+- **Job:** `security-tests` in `.github/workflows/backend-ci.yml`
+- **Trigger:** Runs on all PRs to `main` branch
+- **Blocking:** CI fails if any security test fails (PR cannot be merged)
+- **Artifact:** Security audit report uploaded as GitHub Actions artifact
+
+#### Adding New Security Test Scenarios
+
+To add new security test scenarios:
+
+1. **RLS Policy Tests:** Add to `tests/security/test_rls_policies.py`
+   - Test that new tables have RLS enabled
+   - Verify policies exist via `pg_policies` catalog
+
+2. **Isolation Tests:** Add to `tests/security/test_tenant_isolation.py`
+   - Test cross-tenant data access is blocked
+   - Verify queries return 0 results for other tenants
+
+3. **JWT Tests:** Add to `tests/security/test_jwt_tenant_enforcement.py`
+   - Test API endpoints with wrong tenant_id JWT
+   - Verify 403/404 responses for unauthorized access
+
+Example test structure:
+```python
+@pytest.mark.asyncio
+async def test_new_table_rls(db: AsyncSession):
+    """Verify new_table has RLS and policies."""
+    status = await get_table_rls_status(db, "new_table")
+    assert status['rls_enabled'], "RLS not enabled on new_table"
+    assert status['policy_count'] > 0, "No policies on new_table"
+```
+
+#### Security Audit Report
+
+After running security tests, review the audit report:
+```bash
+cat tests/security/audit-report.md
+```
+
+The report includes:
+- **RLS Policy Status:** Tables with/without RLS protection
+- **Cross-Tenant Access Attempts:** All attempts should be BLOCKED
+- **JWT Enforcement Results:** Token validation test results
+- **Verdict:** SECURE ✅ or VULNERABLE ❌
+
+**CRITICAL:** DO NOT deploy to production if security audit report shows VULNERABLE status.
+
 ## Migrations
 
 As during local development your app directory is mounted as a volume inside the container, you can also run the migrations with `alembic` commands inside the container and the migration code will be in your app directory (instead of being only inside the container). So you can add it to your git repository.
