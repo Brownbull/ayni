@@ -1,11 +1,13 @@
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import Session, delete
 
 from app.core.config import settings
-from app.core.db import engine, init_db
+from app.core.db import async_session_maker, engine, init_db
 from app.main import app
 from app.models import Item, User
 from tests.utils.user import authentication_token_from_email
@@ -22,6 +24,14 @@ def db() -> Generator[Session, None, None]:
         statement = delete(User)
         session.execute(statement)
         session.commit()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_db() -> AsyncGenerator[AsyncSession, None]:
+    """Async database session for testing seed scripts and async operations."""
+    async with async_session_maker() as session:
+        yield session
+        await session.rollback()  # Rollback any uncommitted changes after test
 
 
 @pytest.fixture(scope="module")

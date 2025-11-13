@@ -121,6 +121,111 @@ docker-compose up -d
 # - Redis: localhost:6379
 ```
 
+## Database Migrations
+
+This project uses **Alembic** for database schema migrations and includes seed data for local development.
+
+### Migration Commands
+
+```bash
+cd backend
+
+# Apply all pending migrations (upgrade to latest)
+uv run alembic upgrade head
+
+# Rollback one migration
+uv run alembic downgrade -1
+
+# Check current migration version
+uv run alembic current
+
+# View migration history
+uv run alembic history
+
+# Create a new migration (auto-detect model changes)
+uv run alembic revision --autogenerate -m "Add new table"
+
+# Rollback to specific revision
+uv run alembic downgrade <revision_id>
+```
+
+### Seed Data for Development
+
+The project includes a seed script that creates demo data for local development:
+
+```bash
+cd backend
+
+# Run seed script manually
+uv run python app/db/seeds.py
+```
+
+**Demo data includes:**
+- 1 demo tenant
+- 2 demo users (owner@demo.com, manager@demo.com)
+- 1 demo company with Chilean RUT (12.345.678-9)
+- 2 demo locations (Main Store, Mall Location)
+- Sample transaction data (added in future stories)
+
+**Demo credentials:**
+- Owner: `owner@demo.com` / `DemoPass123!`
+- Manager: `manager@demo.com` / `DemoPass123!`
+
+⚠️ **WARNING:** Change these credentials before deploying to production!
+
+**Note:** The seed script is idempotent - safe to run multiple times without duplicating data.
+
+### Docker Compose Integration
+
+When using `docker-compose up`, migrations and seeds run automatically via the `prestart` service:
+
+```bash
+# Fresh environment setup
+docker-compose up -d
+
+# Migrations are applied automatically
+# Seed data is created automatically
+# Backend API starts after prestart completes
+```
+
+### Troubleshooting Migrations
+
+**Issue:** `alembic: command not found`
+```bash
+# Ensure you're using uv to run commands
+uv run alembic upgrade head
+```
+
+**Issue:** Database connection refused
+```bash
+# Ensure PostgreSQL is running
+docker-compose up -d db
+
+# Check DATABASE_URL in .env matches your setup
+# Default: postgresql+asyncpg://ayni_user:changethis@localhost:5432/ayni_dev
+```
+
+**Issue:** Migration conflicts after git merge
+```bash
+# Check current migration state
+uv run alembic current
+
+# View migration tree
+uv run alembic history
+
+# If needed, create merge migration
+uv run alembic merge heads -m "Merge migration branches"
+```
+
+**Issue:** Need to reset database completely
+```bash
+# ⚠️ WARNING: This deletes all data!
+docker-compose down -v  # Stop and remove volumes
+docker-compose up -d db # Start fresh database
+uv run alembic upgrade head  # Apply all migrations
+uv run python app/db/seeds.py  # Recreate seed data
+```
+
 ## Running Tests
 
 ### Backend Tests
