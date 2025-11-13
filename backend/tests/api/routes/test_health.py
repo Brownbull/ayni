@@ -132,20 +132,37 @@ class TestDetailedHealthEndpoint:
         calculated status_code but always returned 200. This ensures Redis failures
         properly return 503 status code.
         """
-        from unittest.mock import patch
+        from unittest.mock import AsyncMock, patch
 
+        from app.api.deps import get_db
         from app.core.redis import RedisClient
 
-        # Mock Redis to raise connection error
-        with patch.object(
-            RedisClient, "get_client", side_effect=Exception("Redis connection failed")
-        ):
-            response = client.get("/api/v1/health")
+        # Override database dependency to return a healthy mocked session
+        mock_db = AsyncMock()
+        # Mock successful database query execution
+        mock_db.execute.return_value = None  # Successful SELECT 1
 
-            # Should return 503 Service Unavailable (degraded)
-            assert response.status_code == 503
+        async def override_get_db():
+            yield mock_db
 
-            data = response.json()
-            assert data["status"] == "degraded"
-            assert data["services"]["redis"]["status"] == "unhealthy"
-            assert "error" in data["services"]["redis"]
+        app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Mock Redis to raise connection error
+            with patch.object(
+                RedisClient,
+                "get_client",
+                side_effect=Exception("Redis connection failed"),
+            ):
+                response = client.get("/api/v1/health")
+
+                # Should return 503 Service Unavailable (degraded)
+                assert response.status_code == 503
+
+                data = response.json()
+                assert data["status"] == "degraded"
+                assert data["services"]["redis"]["status"] == "unhealthy"
+                assert "error" in data["services"]["redis"]
+        finally:
+            # Clean up dependency override
+            app.dependency_overrides.clear()
