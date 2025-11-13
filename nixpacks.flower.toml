@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["python312", "pip"]
+nixPkgs = ["python312", "uv"]
 
 [phases.install]
-cmds = ["cd backend && pip install -r requirements.txt"]
+cmds = ["cd backend && uv sync"]
 
 [start]
-cmd = "cd backend && celery -A app.workers.celery_app flower --port=5555 --basic-auth=$FLOWER_BASIC_AUTH"
+cmd = "cd backend && uv run celery -A app.workers.celery_app flower --port=5555 --basic-auth=$FLOWER_BASIC_AUTH"
