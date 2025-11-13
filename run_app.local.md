@@ -22,6 +22,9 @@ cd backend && uv run celery -A app.workers.celery_app worker --loglevel=info --c
 
 # Start frontend (in another terminal)
 cd frontend && npm run dev
+
+# Start Flower (Celery monitoring) (in another terminal) - Optional
+cd backend && uv run celery -A app.workers.celery_app flower --port=5555 --basic-auth=admin:admin
 ```
 
 **Access the application:**
@@ -29,6 +32,7 @@ cd frontend && npm run dev
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 - Health Check: http://localhost:8000/api/v1/health
+- Flower UI: http://localhost:5555 (credentials: admin/admin)
 
 ---
 
@@ -243,6 +247,54 @@ uv run pytest tests/core/test_redis.py -v
 uv run pytest --cov=app tests/
 ```
 
+#### Monitoring Endpoints
+
+The backend includes comprehensive monitoring endpoints for observability:
+
+**System Health & Metrics:**
+```bash
+# Get comprehensive system metrics
+curl http://localhost:8000/api/v1/monitoring/metrics
+
+# Response includes:
+# - Application status and uptime
+# - Database connection status
+# - Redis connection status
+# - Celery worker status
+# - Request/response statistics
+```
+
+**Celery Task Monitoring:**
+```bash
+# Get Celery worker and task information
+curl http://localhost:8000/api/v1/monitoring/celery/tasks
+
+# Response includes:
+# - Active workers
+# - Registered tasks
+# - Task execution statistics
+```
+
+**Error Tracking:**
+All backend errors are automatically captured and sent to Sentry when `SENTRY_DSN` is configured in the environment variables. This includes:
+- Unhandled exceptions
+- HTTP errors (4xx, 5xx)
+- Database errors
+- Redis connection issues
+- Celery task failures
+
+**Performance Monitoring:**
+Every API request includes an `X-Response-Time` header showing the request processing time in milliseconds. This is useful for identifying slow endpoints during development.
+
+**Configuration:**
+Set these environment variables in `.env` to enable monitoring:
+```bash
+# Sentry Error Tracking (Optional for local dev)
+SENTRY_DSN=https://your-sentry-dsn@sentry.io/project-id
+SENTRY_ENVIRONMENT=local
+SENTRY_TRACES_SAMPLE_RATE=0.1
+```
+
 ---
 
 ### 4. Celery Worker (Background Jobs)
@@ -281,6 +333,30 @@ uv run celery -A app.workers.celery_app inspect stats
 # Purge all queued tasks (use with caution!)
 uv run celery -A app.workers.celery_app purge
 ```
+
+#### Flower UI (Celery Monitoring)
+
+Start Flower to monitor Celery workers and tasks in a web interface:
+
+```bash
+cd backend
+uv run celery -A app.workers.celery_app flower --port=5555 --basic-auth=admin:admin
+```
+
+**Access Flower:**
+- URL: http://localhost:5555
+- Username: `admin`
+- Password: `admin`
+
+**Flower Features:**
+- Real-time worker monitoring
+- Task history and status
+- Task execution details
+- Worker resource usage
+- Task rate limiting controls
+
+**Configuration:**
+The `FLOWER_BASIC_AUTH` environment variable controls access credentials in the format `username:password`.
 
 #### Test Background Tasks
 
@@ -577,21 +653,31 @@ DOCKER_IMAGE_FRONTEND=ayni-frontend
 # SMTP_PASSWORD=
 # EMAILS_FROM_EMAIL=
 
-# Optional: Monitoring (not required for local dev)
-# SENTRY_DSN=
+# Optional: Monitoring & Observability
+# Sentry error tracking and performance monitoring
+SENTRY_DSN=https://your-sentry-dsn@sentry.io/project-id
+SENTRY_ENVIRONMENT=local
+SENTRY_TRACES_SAMPLE_RATE=0.1
+
+# Flower UI for Celery monitoring (username:password)
+# Access at http://localhost:5555
+FLOWER_BASIC_AUTH=admin:admin
 ```
 
 ---
 
 ## Port Reference
 
-| Service    | Port | URL                                    |
-|------------|------|----------------------------------------|
-| Frontend   | 5173 | http://localhost:5173                  |
-| Backend    | 8000 | http://localhost:8000                  |
-| API Docs   | 8000 | http://localhost:8000/docs             |
-| PostgreSQL | 5432 | postgresql://localhost:5432/ayni_dev   |
-| Redis      | 6379 | redis://localhost:6379/0               |
+| Service             | Port | URL                                    |
+|---------------------|------|----------------------------------------|
+| Frontend            | 5173 | http://localhost:5173                  |
+| Backend             | 8000 | http://localhost:8000                  |
+| API Docs            | 8000 | http://localhost:8000/docs             |
+| Monitoring Metrics  | 8000 | http://localhost:8000/api/v1/monitoring/metrics |
+| Celery Task Monitor | 8000 | http://localhost:8000/api/v1/monitoring/celery/tasks |
+| Flower UI           | 5555 | http://localhost:5555                  |
+| PostgreSQL          | 5432 | postgresql://localhost:5432/ayni_dev   |
+| Redis               | 6379 | redis://localhost:6379/0               |
 
 ---
 

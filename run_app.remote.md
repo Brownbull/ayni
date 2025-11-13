@@ -11,6 +11,8 @@ This guide covers the production deployment on Railway (backend) and Render (fro
 | **Frontend** | Render | https://ayni-frontend.onrender.com |  Live |
 | **Backend API** | Railway | https://ayni-backend-production.up.railway.app |  Live |
 | **Celery Worker** | Railway | (Background service) |  Running |
+| **Flower UI** | Railway | https://ayni-flower-production.up.railway.app |  Live |
+| **Sentry** | Sentry.io | https://sentry.io/organizations/ayni |  Monitoring |
 | **PostgreSQL** | Railway | (Managed service) |  Connected |
 | **Redis** | Railway | (Managed service) |  Connected |
 
@@ -23,11 +25,15 @@ This guide covers the production deployment on Railway (backend) and Render (fro
 - **Backend API**: https://ayni-backend-production.up.railway.app
 - **API Docs**: https://ayni-backend-production.up.railway.app/docs
 - **Health Check**: https://ayni-backend-production.up.railway.app/api/v1/health
+- **Monitoring Metrics**: https://ayni-backend-production.up.railway.app/api/v1/monitoring/metrics
+- **Celery Tasks**: https://ayni-backend-production.up.railway.app/api/v1/monitoring/celery/tasks
+- **Flower UI**: https://ayni-flower-production.up.railway.app (Celery monitoring)
 
 ### Dashboards
 - **Railway Dashboard**: https://railway.app/project/resilient-flow
 - **Render Dashboard**: https://dashboard.render.com
 - **GitHub Actions CI**: https://github.com/Brownbull/ayni/actions
+- **Sentry Error Tracking**: https://sentry.io (Project: ayni)
 
 ---
 
@@ -69,6 +75,7 @@ GitHub Repository (Brownbull/ayni)
 **Railway Services:**
 - Backend API (FastAPI + Uvicorn)
 - Celery Worker (background tasks)
+- Flower (Celery monitoring UI)
 - PostgreSQL 17 (database)
 - Redis 7 (cache + message broker)
 
@@ -132,6 +139,75 @@ curl https://ayni-backend-production.up.railway.app/api/v1/health | jq
 }
 ```
 
+### Monitoring & Observability
+
+#### Monitoring Endpoints
+
+**System Metrics:**
+```bash
+# Get comprehensive system metrics
+curl https://ayni-backend-production.up.railway.app/api/v1/monitoring/metrics | jq
+
+# Response includes:
+# - Application status and uptime
+# - Database connection status and latency
+# - Redis connection status and latency
+# - Celery worker status
+# - Request/response statistics
+```
+
+**Celery Task Monitoring:**
+```bash
+# Get Celery worker and task information
+curl https://ayni-backend-production.up.railway.app/api/v1/monitoring/celery/tasks | jq
+
+# Response includes:
+# - Active workers
+# - Registered tasks
+# - Task execution statistics
+# - Worker pool information
+```
+
+#### Flower UI (Celery Monitoring)
+
+Access the Flower web interface for real-time Celery monitoring:
+
+**URL**: https://ayni-flower-production.up.railway.app
+
+**Features:**
+- Real-time worker monitoring
+- Task history and status tracking
+- Task execution details and results
+- Worker resource usage graphs
+- Task rate limiting controls
+- Task retry and revoke capabilities
+
+**Authentication:**
+- Credentials are set via `FLOWER_BASIC_AUTH` environment variable in Railway
+- Format: `username:password`
+
+#### Sentry Error Tracking
+
+All production errors are automatically captured and reported to Sentry:
+
+**Dashboard**: https://sentry.io/organizations/your-org/projects/ayni/
+
+**What's Tracked:**
+- Unhandled exceptions (backend and frontend)
+- HTTP errors (4xx, 5xx)
+- Database connection errors
+- Redis connection failures
+- Celery task failures
+- Performance metrics (when enabled)
+
+**Alerts Configured:**
+1. **Critical Errors**: Immediate notification for new high-priority issues
+2. **New Issues**: Daily digest of new error types
+3. **Regression Alerts**: Notification when resolved issues reappear
+
+**Performance Monitoring:**
+Every API request includes an `X-Response-Time` header showing the request processing time in milliseconds. Monitor these in Sentry's Performance dashboard.
+
 ### View Logs
 
 #### Railway Backend Logs
@@ -156,6 +232,15 @@ railway logs --service ayni-celery-worker
 
 # Follow logs
 railway logs --service ayni-celery-worker -f
+```
+
+#### Railway Flower Logs
+```bash
+# Latest logs
+railway logs --service ayni-flower
+
+# Follow logs
+railway logs --service ayni-flower -f
 ```
 
 #### Render Frontend Logs
@@ -200,6 +285,27 @@ Required environment variables in Railway dashboard:
 | `SECRET_KEY` | `<random string>` | App secret key |
 | `FIRST_SUPERUSER` | `admin@ayni.com` | Initial admin email |
 | `FIRST_SUPERUSER_PASSWORD` | `<secure password>` | Initial admin password |
+| `SENTRY_DSN` | `<from Sentry dashboard>` | Sentry error tracking DSN |
+| `SENTRY_ENVIRONMENT` | `production` | Sentry environment name |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Performance monitoring sample rate (10%) |
+
+### Flower (Railway)
+
+Required environment variables for Flower service in Railway dashboard:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `REDIS_URL` | `${{Redis.REDIS_URL}}` | Redis connection URL |
+| `FLOWER_BASIC_AUTH` | `<username:password>` | Basic auth credentials |
+| `POSTGRES_SERVER` | `${{Postgres.RAILWAY_PRIVATE_DOMAIN}}` | PostgreSQL host (needed by celery_app) |
+| `POSTGRES_PORT` | `${{Postgres.PGPORT}}` | PostgreSQL port |
+| `POSTGRES_USER` | `${{Postgres.PGUSER}}` | Database user |
+| `POSTGRES_PASSWORD` | `${{Postgres.PGPASSWORD}}` | Database password |
+| `POSTGRES_DB` | `${{Postgres.PGDATABASE}}` | Database name |
+| `JWT_SECRET` | `${{ayni-backend.JWT_SECRET}}` | JWT secret (reference from backend) |
+| `PROJECT_NAME` | `Ayni` | Project name |
+| `FIRST_SUPERUSER` | `${{ayni-backend.FIRST_SUPERUSER}}` | Admin email (reference from backend) |
+| `FIRST_SUPERUSER_PASSWORD` | `${{ayni-backend.FIRST_SUPERUSER_PASSWORD}}` | Admin password (reference from backend) |
 
 ### Frontend (Render)
 
@@ -208,6 +314,7 @@ Required environment variable in Render dashboard:
 | Variable | Value | Description |
 |----------|-------|-------------|
 | `VITE_API_URL` | `https://ayni-backend-production.up.railway.app/api/v1` | Backend API URL |
+| `VITE_SENTRY_DSN` | `<from Sentry dashboard>` | Sentry error tracking DSN for frontend |
 
 ---
 
@@ -413,6 +520,50 @@ railway ps --service ayni-celery-worker
    ```bash
    railway restart --service ayni-celery-worker
    ```
+
+### Flower Monitoring Issues
+
+#### Flower Not Accessible (502 errors)
+
+**Check Flower service status:**
+```bash
+# View Flower logs
+railway logs --service ayni-flower
+
+# Check if Flower service is running
+railway ps --service ayni-flower
+```
+
+**Common causes:**
+- Missing dependencies (flower package not installed)
+- Missing environment variables (REDIS_URL, database configs, JWT_SECRET)
+- Incorrect build configuration in nixpacks.toml
+- Flower command not found
+
+**Resolution:**
+1. Verify all required environment variables are set:
+   ```bash
+   railway variables --service ayni-flower
+   ```
+2. Check that `nixpacks.flower.toml` uses `uv sync` to install all dependencies
+3. Ensure Root Directory is set to "backend" in Railway settings
+4. Verify FLOWER_BASIC_AUTH is set for authentication
+5. Redeploy if configuration was changed:
+   ```bash
+   railway up --service ayni-flower
+   ```
+
+#### Cannot Login to Flower
+
+**Resolution:**
+```bash
+# Check FLOWER_BASIC_AUTH variable
+railway variables --service ayni-flower | grep FLOWER
+
+# Format should be: username:password
+# Update if needed:
+railway variables set FLOWER_BASIC_AUTH=admin:newpassword --service ayni-flower
+```
 
 ### Frontend Issues
 
