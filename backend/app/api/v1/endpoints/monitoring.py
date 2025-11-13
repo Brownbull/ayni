@@ -236,3 +236,21 @@ async def get_task_status(task_id: str):
             status_code=500,
             detail=f"Failed to retrieve task status for {task_id}",
         ) from e
+
+
+@router.get("/test-error")
+async def trigger_test_error():
+    """
+    Test endpoint to trigger a Sentry error for monitoring verification.
+
+    **IMPORTANT:** This endpoint should be removed or protected in production.
+    Only use for testing Sentry integration.
+
+    Raises:
+        Exception: Always raises a test exception that will be captured by Sentry
+    """
+    logger.info("Test error endpoint triggered - this will be sent to Sentry")
+    raise Exception(
+        "This is a test error to verify Sentry integration is working correctly. "
+        "If you see this in Sentry, monitoring is configured properly!"
+    )
