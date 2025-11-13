@@ -1,5 +1,9 @@
 # Ayni - Multi-Location Retail Analytics Platform
 
+[![Backend CI](https://github.com/Brownbull/ayni/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/Brownbull/ayni/actions/workflows/backend-ci.yml)
+[![Frontend CI](https://github.com/Brownbull/ayni/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/Brownbull/ayni/actions/workflows/frontend-ci.yml)
+[![codecov](https://codecov.io/gh/Brownbull/ayni/branch/main/graph/badge.svg)](https://codecov.io/gh/Brownbull/ayni)
+
 **Ayni** is a multi-tenant SaaS platform that transforms retail analytics for Chilean and Latin American SMBs, providing multi-location analytics, cross-tenant benchmarking, and real-time dashboard performance.
 
 ## Project Description
@@ -219,7 +223,25 @@ poetry run cmd    → uv run cmd
 
 ## Deployment
 
-### Backend (Railway)
+**Production Deployment Status:**
+- **Backend API:** Railway (auto-deploys from `main` branch)
+- **Frontend:** Render (auto-deploys from `main` branch)
+- **CI/CD:** GitHub Actions (tests must pass before deployment)
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for comprehensive deployment procedures and rollback guides.
+
+### Quick Deploy
+
+Deployments are **fully automated**:
+
+1. Merge PR to `main` branch
+2. GitHub Actions runs CI tests (backend + frontend)
+3. If tests pass, Railway and Render auto-deploy
+4. Health checks verify services are operational
+
+### Manual Deployment (if needed)
+
+#### Backend (Railway)
 
 ```bash
 # Install Railway CLI
@@ -227,19 +249,21 @@ npm install -g @railway/cli
 
 # Login and deploy
 railway login
-railway init
-railway add postgresql
+railway link
 railway up
 ```
 
-### Frontend (Render)
+#### Frontend (Render)
 
 1. Push to GitHub
-2. Connect Render to repository
-3. Configure build settings:
+2. Render dashboard → Manual Deploy → "Deploy latest commit"
+
+Or configure automatic deployment:
+1. Connect Render to repository
+2. Configure build settings:
    - **Build Command:** `cd frontend && npm install && npm run build`
    - **Publish Directory:** `frontend/dist`
-4. Deploy automatically on git push
+3. Deploy automatically on git push
 
 ## Development Workflow
 
