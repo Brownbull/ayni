@@ -8,6 +8,9 @@ from app.core.config import settings
 from app.middleware.error_handlers import register_exception_handlers
 from app.middleware.logging import RequestLoggingMiddleware
 
+# Import Celery app for task autodiscovery
+from app.workers.celery_app import celery_app  # noqa: F401
+
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     if route.tags:

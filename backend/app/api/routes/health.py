@@ -53,10 +53,26 @@ async def detailed_health(db: SessionDep) -> dict[str, Any]:
         }
         health_status["status"] = "unhealthy"
 
-    # Check Redis (placeholder - not yet implemented in Story 1.3)
-    # Redis will be added in Story 1.4
-    # For now, we note it as not configured
-    health_status["services"]["redis"] = {"status": "not_configured"}
+    # Check Redis
+    try:
+        from app.core.redis import RedisClient
+
+        redis = await RedisClient.get_client()
+        start = time.time()
+        await redis.ping()
+        latency_ms = round((time.time() - start) * 1000, 2)
+        health_status["services"]["redis"] = {
+            "status": "healthy",
+            "latency_ms": latency_ms,
+        }
+    except Exception as e:
+        health_status["services"]["redis"] = {
+            "status": "unhealthy",
+            "error": str(e),
+        }
+        # Redis failure is degraded, not unhealthy - app can run without Redis
+        if health_status["status"] == "healthy":
+            health_status["status"] = "degraded"
 
     # Determine HTTP status code based on overall health
     status_code = (

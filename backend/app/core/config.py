@@ -56,6 +56,21 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
 
+    # Redis and Celery configuration
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def CELERY_BROKER_URL(self) -> str:
+        """Celery broker URL - uses Redis database 0"""
+        return self.REDIS_URL.replace("/0", "/0")  # Explicitly use db 0 for broker
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def CELERY_RESULT_BACKEND(self) -> str:
+        """Celery result backend URL - uses Redis database 1"""
+        return self.REDIS_URL.replace("/0", "/1")  # Use db 1 for results
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
