@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["python312", "pip"]
+
+[phases.install]
+cmds = ["cd backend && pip install -r requirements.txt"]
+
+[start]
+cmd = "cd backend && celery -A app.workers.celery_app flower --port=5555 --basic-auth=$FLOWER_BASIC_AUTH"
