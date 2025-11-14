@@ -11,9 +11,11 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 import sentry_sdk
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from redis.asyncio import Redis
 from sqlmodel import select
@@ -625,7 +627,6 @@ async def google_authorize(
 
 @router.get(
     "/auth/google/callback",
-    response_model=Token,
     tags=["auth"],
 )
 async def google_callback(
@@ -634,7 +635,7 @@ async def google_callback(
     request: Request,
     session: AsyncSession = Depends(get_async_session),
     redis: Redis = Depends(RedisClient.get_client),
-) -> Any:
+) -> RedirectResponse:
     """
     Google OAuth callback handler.
 
@@ -653,9 +654,7 @@ async def google_callback(
     - Rate limiting: 10 requests per minute per IP
 
     **Returns:**
-    - access_token: JWT access token (24-hour expiration)
-    - refresh_token: JWT refresh token (30-day expiration)
-    - token_type: "bearer"
+    - Redirects to frontend with access_token and refresh_token as URL parameters
     """
     from app.core.oauth import google_oauth_client
 
@@ -884,8 +883,16 @@ async def google_callback(
 
     logger.info(f"Google OAuth login successful for: {user.email} (user_id={user.id})")
 
-    return Token(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer",
+    # Redirect to frontend with tokens as URL parameters
+    # Frontend will extract tokens and store them in localStorage
+    frontend_url = settings.FRONTEND_HOST
+    callback_params = urlencode(
+        {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
     )
+    redirect_url = f"{frontend_url}/auth/callback?{callback_params}"
+
+    return RedirectResponse(url=redirect_url, status_code=302)

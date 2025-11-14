@@ -18,53 +18,55 @@ This guide walks you through deploying the Ayni frontend to Render using the `re
 
 ## Step-by-Step Deployment
 
-### 1. Go to Render Dashboard
+### 1. Go to Render Blueprints
 
-Visit https://dashboard.render.com
+Visit https://dashboard.render.com/blueprints
 
-### 2. Create New Static Site
+### 2. Create New Blueprint Instance
 
-Click **"New +"** → **"Static Site"**
+Click **"New Blueprint Instance"**
 
 ### 3. Connect Repository
 
-- Select **"Connect a repository"**
-- Choose **"Brownbull/ayni"** from the list
-- If not listed, click **"Configure account"** to authorize Render
+- If this is your first time:
+  - Click **"Connect GitHub"** or **"Connect GitLab"**
+  - Authorize Render to access your repositories
+- Select **"Brownbull/ayni"** from the repository list
+- If not listed, click **"Configure account"** to grant access
 
-### 4. Configure Deployment
+### 4. Configure Blueprint
 
-**IMPORTANT:** Select **"Apply render.yaml"**
+Render will detect `render.yaml` in the repository root and show:
 
-This will automatically configure:
-- Build command: `cd frontend && npm install --legacy-peer-deps && npm run build`
-- Publish directory: `frontend/dist`
-- Environment variables from render.yaml
-- Routing rules for SPA
-- Security headers
+**Blueprint Name:**
+- Default: `bp-ayni-frontend`
+- You can keep this or rename it
 
-### 5. Review Configuration
+**Branch:**
+- Default: `main`
+- This is the branch containing your `render.yaml` file
 
-Render will show the configuration from `render.yaml`:
+**Review Configuration:**
+Render will display: *"You are deploying from a render.yaml for Brownbull/ayni"*
 
-```yaml
-Service Name: ayni-frontend
-Environment: static
-Build Command: cd frontend && npm install --legacy-peer-deps && npm run build
-Publish Directory: frontend/dist
-```
+You'll see:
+- **Service Type**: static site
+- **Service Name**: ayni-frontend (from render.yaml)
 
-**Environment Variables:**
-- `VITE_API_URL`: `https://ayni-backend-production.up.railway.app/api/v1`
-- `VITE_ENVIRONMENT`: `production`
-- `VITE_SENTRY_DSN`: (optional - you can set later)
+### 5. Set Environment Variables
 
-**Routes:**
-- `/*` → `/index.html` (rewrite, 200)
+Under **"Specified configurations"**, you'll see:
 
-### 6. Deploy
+**VITE_SENTRY_DSN** (marked as `sync: false` in render.yaml)
+- This is the only variable you need to provide manually
+- The other variables (`VITE_API_URL`, `VITE_ENVIRONMENT`) are already set in render.yaml
+- Enter your Sentry DSN or leave blank if not using Sentry
 
-Click **"Create Static Site"**
+**Note:** The blueprint only asks for variables marked as `sync: false`. Variables with hardcoded values in render.yaml are applied automatically.
+
+### 6. Deploy Blueprint
+
+Click **"Deploy Blueprint"**
 
 Render will:
 1. Clone the repository

@@ -9,7 +9,7 @@ import { useAuth } from '../hooks/useAuth'
 export default function OAuthCallback() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { handleOAuthCallback, error } = useAuth()
+  const { error } = useAuth()
   const hasProcessed = useRef(false)
 
   useEffect(() => {
@@ -18,8 +18,8 @@ export default function OAuthCallback() {
       return
     }
 
-    const code = searchParams.get('code')
-    const state = searchParams.get('state')
+    const accessToken = searchParams.get('access_token')
+    const refreshToken = searchParams.get('refresh_token')
     const errorParam = searchParams.get('error')
 
     if (errorParam) {
@@ -30,27 +30,31 @@ export default function OAuthCallback() {
       return
     }
 
-    if (!code || !state) {
+    if (!accessToken) {
       navigate('/login', {
         state: { error: 'Error al conectar con Google. Por favor, intenta nuevamente.' }
       })
       return
     }
 
-    // Mark as processed before making the API call
+    // Mark as processed
     hasProcessed.current = true
 
-    // Handle OAuth callback
-    handleOAuthCallback(code, state)
+    // Store tokens in localStorage
+    localStorage.setItem('access_token', accessToken)
+    if (refreshToken) {
+      localStorage.setItem('refresh_token', refreshToken)
+    }
+
+    // Load user profile and redirect to dashboard
+    useAuth.getState().loadUser()
       .then(() => {
-        // Redirect to dashboard on success
         navigate('/dashboard')
       })
       .catch(() => {
-        // Error is already set in auth store
         navigate('/login')
       })
-  }, [searchParams, handleOAuthCallback, navigate])
+  }, [searchParams, navigate])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
