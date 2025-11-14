@@ -88,7 +88,11 @@ class UserCreate(UserBase):
 
 class UserRegister(SQLModel):
     email: EmailStr = Field(max_length=255)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(
+        min_length=8,
+        max_length=128,
+        description="Password must be at least 8 characters long",
+    )
     full_name: str | None = Field(default=None, max_length=255)
 
 
@@ -109,14 +113,21 @@ class UpdatePassword(SQLModel):
 
 
 # Database model, database table inferred from class name
+# Compatible with fastapi-users for authentication
 class User(UserBase, table=True):
+    """User model with multi-tenant support and fastapi-users integration"""
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    tenant_id: int | None = Field(default=None, foreign_key="tenants.id", index=True)
     hashed_password: str
+    is_verified: bool = Field(
+        default=False, description="Email verification status"
+    )  # fastapi-users uses is_verified instead of email_verified
+
+    # Multi-tenant and custom fields
+    tenant_id: int | None = Field(default=None, foreign_key="tenants.id", index=True)
     role: str | None = Field(
         default="Owner", max_length=50
     )  # Owner, Manager, Analyst, Viewer
-    email_verified: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -176,10 +187,11 @@ class Message(SQLModel):
     message: str
 
 
-# JSON payload containing access token
+# JSON payload containing access token and optional refresh token
 class Token(SQLModel):
     access_token: str
     token_type: str = "bearer"
+    refresh_token: str | None = None
 
 
 # Contents of JWT token

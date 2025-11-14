@@ -32,6 +32,12 @@ async_session_maker = sessionmaker(
 )
 
 
+async def get_async_session():
+    """Dependency for getting async database session"""
+    async with async_session_maker() as session:
+        yield session
+
+
 # make sure all SQLModel models are imported (app.models) before initializing DB
 # otherwise, SQLModel might fail to initialize relationships properly
 # for more details: https://github.com/fastapi/full-stack-fastapi-template/issues/28

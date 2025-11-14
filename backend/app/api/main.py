@@ -1,11 +1,12 @@
 from fastapi import APIRouter
 
-from app.api.routes import health, items, login, private, users, utils
+from app.api.routes import auth, health, items, login, private, users, utils
 from app.api.v1.endpoints import monitoring, tasks
 from app.core.config import settings
 
 api_router = APIRouter()
 api_router.include_router(health.router)
+api_router.include_router(auth.router)  # fastapi-users authentication routes
 api_router.include_router(login.router)
 api_router.include_router(users.router)
 api_router.include_router(utils.router)

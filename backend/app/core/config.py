@@ -35,8 +35,10 @@ class Settings(BaseSettings):
     # JWT Configuration
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
-    # 60 minutes * 24 hours * 8 days = 8 days
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
+    # 60 minutes * 24 hours = 24 hours (1 day) per Story 2.1 requirements
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    # 30 days for refresh token per Story 2.1 AC#4
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     FRONTEND_HOST: str = "http://localhost:5173"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
 
