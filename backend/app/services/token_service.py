@@ -5,7 +5,7 @@ Handles refresh token creation, validation, rotation, and revocation.
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -41,7 +41,7 @@ async def create_and_store_refresh_token(
     db_refresh_token = RefreshToken(
         user_id=user_id,
         token_hash=token_hash,
-        expires_at=datetime.now(timezone.utc) + expires_delta,
+        expires_at=datetime.utcnow() + expires_delta,
     )
     session.add(db_refresh_token)
     await session.commit()
@@ -100,7 +100,7 @@ async def verify_refresh_token(token: str, session: AsyncSession) -> User | None
             .where(RefreshToken.user_id == user_id)
             .where(RefreshToken.used_at.is_(None))
             .where(RefreshToken.revoked_at.is_(None))
-            .where(RefreshToken.expires_at > datetime.now(timezone.utc))
+            .where(RefreshToken.expires_at > datetime.utcnow())
         )
         valid_tokens = result.scalars().all()
 
@@ -157,9 +157,9 @@ async def invalidate_refresh_token(
             if verify_password(token, db_token.token_hash):
                 # Mark as used or revoked
                 if mark_as == "used":
-                    db_token.used_at = datetime.now(timezone.utc)
+                    db_token.used_at = datetime.utcnow()
                 elif mark_as == "revoked":
-                    db_token.revoked_at = datetime.now(timezone.utc)
+                    db_token.revoked_at = datetime.utcnow()
 
                 session.add(db_token)
                 await session.commit()
@@ -191,7 +191,7 @@ async def revoke_all_user_tokens(user_id: uuid.UUID, session: AsyncSession) -> i
 
     count = 0
     for token in tokens:
-        token.revoked_at = datetime.now(timezone.utc)
+        token.revoked_at = datetime.utcnow()
         session.add(token)
         count += 1
 
@@ -212,7 +212,7 @@ async def cleanup_expired_tokens(session: AsyncSession) -> int:
         Number of tokens deleted
     """
     result = await session.execute(
-        select(RefreshToken).where(RefreshToken.expires_at < datetime.now(timezone.utc))
+        select(RefreshToken).where(RefreshToken.expires_at < datetime.utcnow())
     )
     expired_tokens = result.scalars().all()
 

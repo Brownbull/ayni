@@ -226,6 +226,80 @@ uv run alembic upgrade head  # Apply all migrations
 uv run python app/db/seeds.py  # Recreate seed data
 ```
 
+## Google OAuth 2.0 Configuration (Optional)
+
+Ayni supports Google OAuth 2.0 for user authentication alongside traditional email/password login.
+
+### Setting Up Google OAuth
+
+1. **Create Google Cloud Project**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+
+2. **Enable Google+ API**
+   - Navigate to "APIs & Services" → "Library"
+   - Search for "Google+ API" (or "People API" for newer projects)
+   - Click "Enable"
+
+3. **Configure OAuth Consent Screen**
+   - Go to "APIs & Services" → "OAuth consent screen"
+   - Fill in required fields:
+     - Application name: "Ayni"
+     - Support email: your email
+     - Logo: Upload your logo (120x120 px)
+   - Scopes: `email`, `profile`, `openid`
+
+4. **Create OAuth 2.0 Client ID**
+   - Go to "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "OAuth 2.0 Client ID"
+   - Application type: "Web application"
+   - Name: "Ayni Web Client"
+   - Authorized redirect URIs:
+     - Development: `http://localhost:8000/api/v1/auth/google/callback`
+     - Production: `https://api.ayni.cl/api/v1/auth/google/callback`
+   - Click "Create"
+
+5. **Add Credentials to Environment**
+
+   Update your `.env` file with the Client ID and Client Secret:
+
+   ```bash
+   # Google OAuth 2.0 Configuration (Story 2.5)
+   GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
+   GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/api/v1/auth/google/callback
+   ```
+
+6. **Restart Backend Server**
+
+   ```bash
+   # OAuth will be automatically enabled when credentials are present
+   uv run uvicorn app.main:app --reload
+   ```
+
+### OAuth Security Features
+
+- **State Parameter:** CSRF protection with 5-minute expiration stored in Redis
+- **Token Encryption:** Google OAuth tokens are encrypted before database storage
+- **HTTPS Enforcement:** Production requires HTTPS for redirect URIs (Google requirement)
+- **Account Merging:** Existing email/password users can link their Google account
+- **Pre-verified Emails:** Google-authenticated users automatically have verified emails
+
+### OAuth API Endpoints
+
+- `GET /api/v1/auth/google/authorize` - Get Google authorization URL
+- `GET /api/v1/auth/google/callback` - OAuth callback handler (returns JWT tokens)
+
+### Testing OAuth Integration
+
+```bash
+# Run OAuth-specific tests
+cd backend
+uv run pytest tests/test_oauth.py -v
+```
+
+**Note:** OAuth is optional. If credentials are not configured, the endpoints return HTTP 503 and email/password authentication remains fully functional.
+
 ## Running Tests
 
 ### Backend Tests

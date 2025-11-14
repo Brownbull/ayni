@@ -8,13 +8,13 @@
  * - Rotates refresh tokens on each refresh (per Story 2.3 AC#4)
  */
 
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
 
 // Create axios instance
 export const apiClient = axios.create({
-  baseURL: `${API_URL}/api/v1`,
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -115,7 +115,7 @@ apiClient.interceptors.response.use(
 
       try {
         // Attempt to refresh the token
-        const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
+        const response = await axios.post(`${API_URL}/auth/refresh`, {
           refresh_token: refreshToken,
         })
 

@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand'
-import { User, login as apiLogin, logout as apiLogout, getCurrentUser, register as apiRegister, RegisterRequest } from '../api/auth'
+import { type User, login as apiLogin, logout as apiLogout, getCurrentUser, register as apiRegister, type RegisterRequest, getGoogleAuthUrl, handleGoogleCallback } from '../api/auth'
 
 interface AuthState {
   user: User | null
@@ -13,13 +13,15 @@ interface AuthState {
 
   // Actions
   login: (email: string, password: string) => Promise<void>
+  loginWithGoogle: () => Promise<void>
+  handleOAuthCallback: (code: string, state: string) => Promise<void>
   register: (data: RegisterRequest) => Promise<void>
   logout: () => void
   loadUser: () => Promise<void>
   clearError: () => void
 }
 
-export const useAuth = create<AuthState>((set) => ({
+export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: false,
@@ -46,6 +48,51 @@ export const useAuth = create<AuthState>((set) => ({
       })
     } catch (error: unknown) {
       const errorMessage = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Login failed'
+      set({
+        error: errorMessage,
+        isLoading: false,
+        user: null,
+        isAuthenticated: false
+      })
+      throw error
+    }
+  },
+
+  loginWithGoogle: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const { authorization_url } = await getGoogleAuthUrl()
+      // Redirect to Google authorization page
+      window.location.href = authorization_url
+    } catch (error: unknown) {
+      const errorMessage = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Error al iniciar sesión con Google'
+      set({
+        error: errorMessage,
+        isLoading: false
+      })
+      throw error
+    }
+  },
+
+  handleOAuthCallback: async (code: string, state: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const response = await handleGoogleCallback(code, state)
+
+      // Store tokens in localStorage
+      localStorage.setItem('access_token', response.access_token)
+      if (response.refresh_token) {
+        localStorage.setItem('refresh_token', response.refresh_token)
+      }
+
+      // Load user after successful OAuth login
+      await get().loadUser()
+
+      set({
+        isLoading: false
+      })
+    } catch (error: unknown) {
+      const errorMessage = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Error al conectar con Google'
       set({
         error: errorMessage,
         isLoading: false,

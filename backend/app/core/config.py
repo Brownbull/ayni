@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     # Redis and Celery configuration
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Google OAuth 2.0 Configuration (Story 2.5)
+    GOOGLE_OAUTH_CLIENT_ID: str | None = None
+    GOOGLE_OAUTH_CLIENT_SECRET: str | None = None
+    GOOGLE_OAUTH_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def CELERY_BROKER_URL(self) -> str:

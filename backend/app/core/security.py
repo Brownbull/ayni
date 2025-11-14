@@ -1,7 +1,9 @@
-from datetime import datetime, timedelta, timezone
+import base64
+from datetime import datetime, timedelta
 from typing import Any
 
 import jwt
+from cryptography.fernet import Fernet
 from passlib.context import CryptContext
 
 from app.core.config import settings
@@ -33,10 +35,10 @@ def create_access_token(
     Returns:
         Encoded JWT token
     """
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.utcnow() + expires_delta
     to_encode = {
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.utcnow(),
         "sub": str(subject),
         "type": "access",
     }
@@ -70,10 +72,10 @@ def create_refresh_token(
     Returns:
         Encoded JWT refresh token
     """
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.utcnow() + expires_delta
     to_encode = {
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.utcnow(),
         "sub": str(subject),
         "type": "refresh",
     }
@@ -114,10 +116,10 @@ def create_verification_token(
     if expires_delta is None:
         expires_delta = timedelta(hours=24)
 
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.utcnow() + expires_delta
     to_encode = {
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.utcnow(),
         "sub": str(user_id),
         "type": "email_verification",
     }
@@ -164,3 +166,54 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
+
+
+def _get_encryption_key() -> bytes:
+    """
+    Derive Fernet encryption key from JWT secret.
+
+    Uses base64-encoded SHA256 hash of JWT_SECRET to create a valid Fernet key.
+    This ensures the encryption key is deterministic and based on the app secret.
+
+    Returns:
+        32-byte Fernet-compatible encryption key
+    """
+    import hashlib
+
+    # Create SHA256 hash of JWT_SECRET
+    key_hash = hashlib.sha256(settings.JWT_SECRET.encode()).digest()
+    # Fernet requires base64-encoded 32-byte key
+    return base64.urlsafe_b64encode(key_hash)
+
+
+def encrypt_token(token: str) -> str:
+    """
+    Encrypt OAuth token for database storage.
+
+    Args:
+        token: Plain text OAuth token
+
+    Returns:
+        Encrypted token (base64-encoded)
+    """
+    fernet = Fernet(_get_encryption_key())
+    encrypted = fernet.encrypt(token.encode())
+    return encrypted.decode()
+
+
+def decrypt_token(encrypted_token: str) -> str:
+    """
+    Decrypt OAuth token from database.
+
+    Args:
+        encrypted_token: Encrypted token (base64-encoded)
+
+    Returns:
+        Plain text OAuth token
+
+    Raises:
+        cryptography.fernet.InvalidToken: If decryption fails
+    """
+    fernet = Fernet(_get_encryption_key())
+    decrypted = fernet.decrypt(encrypted_token.encode())
+    return decrypted.decode()

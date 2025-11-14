@@ -118,7 +118,9 @@ class User(UserBase, table=True):
     """User model with multi-tenant support and fastapi-users integration"""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    hashed_password: str
+    hashed_password: str | None = Field(
+        default=None, description="Password hash (null for OAuth-only users)"
+    )  # Story 2.5: nullable for OAuth users
     is_verified: bool = Field(
         default=False, description="Email verification status"
     )  # fastapi-users uses is_verified instead of email_verified
@@ -135,6 +137,9 @@ class User(UserBase, table=True):
     tenant: Tenant | None = Relationship(back_populates="users")
     items: list["Item"] = Relationship(back_populates="owner", cascade_delete=True)
     refresh_tokens: list["RefreshToken"] = Relationship(
+        back_populates="user", cascade_delete=True
+    )
+    oauth_accounts: list["OAuthAccount"] = Relationship(
         back_populates="user", cascade_delete=True
     )
 
@@ -157,6 +162,45 @@ class RefreshToken(SQLModel, table=True):
 
     # Relationships
     user: User | None = Relationship(back_populates="refresh_tokens")
+
+
+# OAuthAccount model for Google OAuth integration (Story 2.5)
+class OAuthAccount(SQLModel, table=True):
+    """OAuth account model for linking external OAuth providers (e.g., Google) to users"""
+
+    __tablename__ = "oauth_accounts"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    oauth_name: str = Field(
+        max_length=50,
+        nullable=False,
+        description="OAuth provider name (e.g., 'google')",
+    )
+    access_token: str = Field(
+        nullable=False, description="Encrypted OAuth access token"
+    )
+    refresh_token: str | None = Field(
+        default=None, description="Encrypted OAuth refresh token"
+    )
+    expires_at: datetime | None = Field(
+        default=None, description="Access token expiration time"
+    )
+    account_id: str = Field(
+        max_length=255,
+        nullable=False,
+        description="OAuth provider user ID (e.g., Google sub)",
+    )
+    account_email: str = Field(
+        max_length=320, nullable=False, description="Email from OAuth provider"
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    user: User | None = Relationship(back_populates="oauth_accounts")
 
 
 # Properties to return via API, id is always required

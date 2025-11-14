@@ -9,11 +9,11 @@ Provides endpoints for:
 
 import logging
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import sentry_sdk
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -25,12 +25,14 @@ from app.core.redis import RedisClient
 from app.core.security import (
     create_access_token,
     create_verification_token,
+    encrypt_token,
     get_password_hash,
     verify_email_token,
     verify_password,
 )
 from app.models import (
     Message,
+    OAuthAccount,
     ResendVerificationRequest,
     Tenant,
     Token,
@@ -518,3 +520,355 @@ async def resend_verification(
         logger.info(f"Resend verification requested for non-existent email: {email}")
 
     return Message(message=response_message)
+
+
+# ============================================================================
+# Google OAuth 2.0 Endpoints (Story 2.5)
+# ============================================================================
+
+
+@router.get(
+    "/auth/google/authorize",
+    response_model=dict[str, str],
+    tags=["auth"],
+)
+async def google_authorize(
+    request: Request,
+    redis: RedisClient = Depends(RedisClient.get_client),
+) -> dict[str, str]:
+    """
+    Generate Google OAuth authorization URL.
+
+    This endpoint creates a Google OAuth authorization URL with a state parameter
+    for CSRF protection. The state is stored in Redis with a 5-minute TTL.
+
+    **OAuth Flow:**
+    1. Frontend calls this endpoint
+    2. Backend generates authorization URL with state parameter
+    3. Frontend redirects user to Google consent screen
+    4. User authorizes
+    5. Google redirects back to callback endpoint
+
+    **Security:**
+    - State parameter stored in Redis (5-minute TTL) for CSRF protection
+    - HTTPS enforced in production (Google requirement)
+    - Rate limiting: 10 requests per minute per IP
+
+    **Returns:**
+    - authorization_url: Google OAuth consent screen URL
+    """
+    from app.core.oauth import google_oauth_client
+
+    if not google_oauth_client:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured. Please set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables.",
+        )
+
+    # Rate limiting: 10 requests per minute per IP
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limit_key = f"oauth_authorize:{client_ip}"
+
+    # Get current count
+    current_count = await redis.get(rate_limit_key)
+    if current_count and int(current_count) >= 10:
+        logger.warning(f"Rate limit exceeded for OAuth authorize from IP: {client_ip}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many OAuth authorization requests. Please try again in 1 minute.",
+        )
+
+    # Increment rate limit counter (60 second TTL)
+    if current_count:
+        await redis.incr(rate_limit_key)
+    else:
+        await redis.setex(rate_limit_key, 60, "1")
+
+    # Generate random state parameter for CSRF protection
+    import secrets
+
+    state = secrets.token_urlsafe(32)
+
+    # Store state in Redis with 5-minute expiration
+    await redis.setex(f"oauth_state:{state}", 300, "1")
+
+    # Generate authorization URL
+    authorization_url = await google_oauth_client.get_authorization_url(
+        redirect_uri=settings.GOOGLE_OAUTH_REDIRECT_URI,
+        state=state,
+        scope=["openid", "email", "profile"],
+    )
+
+    logger.info(
+        f"Generated Google OAuth authorization URL with state: {state[:8]}... from IP: {client_ip}"
+    )
+
+    return {"authorization_url": authorization_url}
+
+
+@router.get(
+    "/auth/google/callback",
+    response_model=Token,
+    tags=["auth"],
+)
+async def google_callback(
+    code: str,
+    state: str,
+    request: Request,
+    session: AsyncSession = Depends(get_async_session),
+    redis: RedisClient = Depends(RedisClient.get_client),
+) -> Any:
+    """
+    Google OAuth callback handler.
+
+    This endpoint handles the OAuth callback from Google, validates the state parameter,
+    exchanges the authorization code for an access token, fetches the user profile,
+    and creates or links the user account.
+
+    **Account Merging Logic:**
+    - **New user (email not in system):** Create user with is_verified=True, insert oauth_accounts entry
+    - **Existing email/password user:** Link OAuth to existing account, update profile
+    - **Existing OAuth user:** Update tokens (refresh access token, expires_at)
+
+    **Security:**
+    - State parameter validation (CSRF protection)
+    - OAuth tokens encrypted before database storage
+    - Rate limiting: 10 requests per minute per IP
+
+    **Returns:**
+    - access_token: JWT access token (24-hour expiration)
+    - refresh_token: JWT refresh token (30-day expiration)
+    - token_type: "bearer"
+    """
+    from app.core.oauth import google_oauth_client
+
+    if not google_oauth_client:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured",
+        )
+
+    # Rate limiting: 10 requests per minute per IP
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limit_key = f"oauth_callback:{client_ip}"
+
+    # Get current count
+    current_count = await redis.get(rate_limit_key)
+    if current_count and int(current_count) >= 10:
+        logger.warning(f"Rate limit exceeded for OAuth callback from IP: {client_ip}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many OAuth callback requests. Please try again in 1 minute.",
+        )
+
+    # Increment rate limit counter (60 second TTL)
+    if current_count:
+        await redis.incr(rate_limit_key)
+    else:
+        await redis.setex(rate_limit_key, 60, "1")
+
+    # Validate state parameter (CSRF protection)
+    stored_state = await redis.get(f"oauth_state:{state}")
+    if not stored_state:
+        logger.warning(f"Invalid or expired OAuth state: {state[:8]}...")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired state parameter. Please try again.",
+        )
+
+    # Delete used state
+    await redis.delete(f"oauth_state:{state}")
+
+    try:
+        # Exchange authorization code for access token
+        token_response = await google_oauth_client.get_access_token(
+            code, redirect_uri=settings.GOOGLE_OAUTH_REDIRECT_URI
+        )
+
+        # Fetch user profile from Google
+        user_id, user_email = await google_oauth_client.get_id_email(
+            token_response["access_token"]
+        )
+
+        # Get additional profile info (name, picture)
+        import httpx
+
+        async with httpx.AsyncClient() as client:
+            profile_response = await client.get(
+                "https://www.googleapis.com/oauth2/v1/userinfo",
+                headers={"Authorization": f"Bearer {token_response['access_token']}"},
+            )
+            profile_response.raise_for_status()
+            profile_data = profile_response.json()
+
+        logger.info(f"Google OAuth callback for email: {user_email}")
+
+    except Exception as e:
+        logger.error(f"Google OAuth error: {str(e)}")
+        sentry_sdk.capture_exception(e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to authenticate with Google. Please try again.",
+        )
+
+    # Check if user exists by email (case-insensitive)
+    from sqlalchemy import func
+
+    result = await session.execute(
+        select(User).where(func.lower(User.email) == user_email.lower())
+    )
+    existing_user = result.scalar_one_or_none()
+
+    if existing_user:
+        # Check if OAuth account already exists
+        oauth_result = await session.execute(
+            select(OAuthAccount).where(
+                OAuthAccount.user_id == existing_user.id,
+                OAuthAccount.oauth_name == "google",
+            )
+        )
+        existing_oauth = oauth_result.scalar_one_or_none()
+
+        if existing_oauth:
+            # Update existing OAuth tokens
+            existing_oauth.access_token = encrypt_token(token_response["access_token"])
+            existing_oauth.refresh_token = (
+                encrypt_token(token_response["refresh_token"])
+                if token_response.get("refresh_token")
+                else None
+            )
+            existing_oauth.expires_at = (
+                datetime.utcnow()
+                + timedelta(seconds=token_response.get("expires_in", 3600))
+                if token_response.get("expires_in")
+                else None
+            )
+            existing_oauth.updated_at = datetime.utcnow()
+            session.add(existing_oauth)
+
+            logger.info(
+                f"Updated OAuth tokens for existing user: {user_email} (user_id={existing_user.id})"
+            )
+        else:
+            # Link OAuth to existing account (account merging)
+            new_oauth_account = OAuthAccount(
+                user_id=existing_user.id,
+                oauth_name="google",
+                access_token=encrypt_token(token_response["access_token"]),
+                refresh_token=(
+                    encrypt_token(token_response["refresh_token"])
+                    if token_response.get("refresh_token")
+                    else None
+                ),
+                expires_at=(
+                    datetime.utcnow()
+                    + timedelta(seconds=token_response.get("expires_in", 3600))
+                    if token_response.get("expires_in")
+                    else None
+                ),
+                account_id=user_id,
+                account_email=user_email,
+            )
+            session.add(new_oauth_account)
+
+            # Update user profile with Google name if not set
+            if not existing_user.full_name and profile_data.get("name"):
+                existing_user.full_name = profile_data["name"]
+                session.add(existing_user)
+
+            logger.info(
+                f"Linked Google OAuth to existing account: {user_email} (user_id={existing_user.id})"
+            )
+            sentry_sdk.add_breadcrumb(
+                category="auth",
+                message="OAuth account merged",
+                level="info",
+                data={
+                    "user_id": str(existing_user.id),
+                    "email": user_email,
+                    "oauth_provider": "google",
+                },
+            )
+
+        user = existing_user
+    else:
+        # Create new user with Google profile data
+        # First create tenant (multi-tenant requirement)
+        new_tenant = Tenant()
+        session.add(new_tenant)
+        await session.flush()  # Get tenant.id
+
+        new_user = User(
+            email=user_email,
+            full_name=profile_data.get("name"),
+            is_verified=True,  # Google emails are pre-verified
+            tenant_id=new_tenant.id,
+            role="Owner",  # Default role for new tenant owner
+            hashed_password=None,  # OAuth-only user (no password)
+        )
+        session.add(new_user)
+        await session.flush()  # Get user.id
+
+        # Create OAuth account record
+        oauth_account = OAuthAccount(
+            user_id=new_user.id,
+            oauth_name="google",
+            access_token=encrypt_token(token_response["access_token"]),
+            refresh_token=(
+                encrypt_token(token_response["refresh_token"])
+                if token_response.get("refresh_token")
+                else None
+            ),
+            expires_at=(
+                datetime.utcnow()
+                + timedelta(seconds=token_response.get("expires_in", 3600))
+                if token_response.get("expires_in")
+                else None
+            ),
+            account_id=user_id,
+            account_email=user_email,
+        )
+        session.add(oauth_account)
+
+        logger.info(
+            f"Created new user via Google OAuth: {user_email} (user_id={new_user.id})"
+        )
+        sentry_sdk.add_breadcrumb(
+            category="auth",
+            message="New user created via OAuth",
+            level="info",
+            data={
+                "user_id": str(new_user.id),
+                "email": user_email,
+                "oauth_provider": "google",
+            },
+        )
+
+        user = new_user
+
+    await session.commit()
+    await session.refresh(user)
+
+    # Generate JWT access and refresh tokens
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        subject=str(user.id),
+        expires_delta=access_token_expires,
+        tenant_id=user.tenant_id,
+        role=user.role,
+        email=user.email,
+    )
+
+    # Create and store refresh token
+    refresh_token = await create_and_store_refresh_token(
+        user_id=user.id,
+        session=session,
+    )
+
+    logger.info(f"Google OAuth login successful for: {user.email} (user_id={user.id})")
+
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+    )

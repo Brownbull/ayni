@@ -28,6 +28,7 @@ export interface User {
 
 export interface TokenResponse {
   access_token: string
+  refresh_token?: string
   token_type: string
 }
 
@@ -88,6 +89,24 @@ export const verifyEmail = async (token: string): Promise<{ message: string }> =
 export const resendVerification = async (email: string): Promise<{ message: string }> => {
   const response = await apiClient.post<{ message: string }>('/auth/resend-verification', {
     email,
+  })
+  return response.data
+}
+
+/**
+ * Get Google OAuth authorization URL
+ */
+export const getGoogleAuthUrl = async (): Promise<{ authorization_url: string }> => {
+  const response = await apiClient.get<{ authorization_url: string }>('/auth/google/authorize')
+  return response.data
+}
+
+/**
+ * Handle Google OAuth callback (exchange code for tokens)
+ */
+export const handleGoogleCallback = async (code: string, state: string): Promise<TokenResponse> => {
+  const response = await apiClient.get<TokenResponse>('/auth/google/callback', {
+    params: { code, state }
   })
   return response.data
 }
