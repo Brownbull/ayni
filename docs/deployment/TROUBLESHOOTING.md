@@ -212,18 +212,34 @@ After deployment, test:
 
 ---
 
-### Issue: Dashboard Shows JSON Instead of UI
+### Issue: OAuth Callback Shows JSON Instead of Redirecting to Dashboard
 
 **Symptom:**
-Navigating to `/dashboard` displays raw JSON access token instead of the dashboard UI.
+After Google OAuth login, browser shows raw JSON with access token instead of redirecting to dashboard.
 
 **Root Cause:**
-TBD - needs investigation
+Backend OAuth callback endpoint was returning JSON response instead of redirecting to frontend.
 
-**Next Steps:**
-1. Check if `/dashboard` route is defined in React Router
-2. Verify Dashboard component is imported correctly
-3. Check for routing conflicts
+**Solution:**
+This is now fixed in commit `2c03230`. The backend now redirects to the frontend with tokens as URL parameters.
+
+**How it works now:**
+1. Google redirects to backend `/api/v1/auth/google/callback`
+2. Backend validates OAuth code, creates/links user account
+3. Backend generates JWT tokens
+4. Backend redirects to `{FRONTEND_HOST}/auth/callback?access_token=...&refresh_token=...`
+5. Frontend OAuthCallback component extracts tokens from URL
+6. Frontend stores tokens in localStorage
+7. Frontend loads user profile
+8. Frontend redirects to `/dashboard`
+
+**Verification:**
+After deploying the fix, test OAuth login:
+1. Click "Sign in with Google"
+2. Authorize on Google
+3. Should redirect to dashboard (not show JSON)
+
+**Fixed in commit:** `2c03230`
 
 ---
 

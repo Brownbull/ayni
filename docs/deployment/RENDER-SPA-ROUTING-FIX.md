@@ -86,7 +86,31 @@ Visit https://ayni-frontend.onrender.com/login in your browser and refresh - sho
 
 - ✅ `_redirects` file exists in repository
 - ✅ File is included in dist build
-- ❌ Routes not configured in Render Dashboard
-- ❌ Service not using render.yaml blueprint
+- ✅ Service deployed using render.yaml blueprint
+- ✅ Routes configured automatically via blueprint
 
-**Action Required:** Follow Option 1 or Option 2 above to fix routing.
+**Status:** ✅ RESOLVED - Service is now deployed using Blueprint (Option 2), which automatically configures SPA routing from `render.yaml`.
+
+## Resolution
+
+The service was successfully migrated to Blueprint-based deployment, which automatically applies the routing configuration from `render.yaml`:
+
+```yaml
+routes:
+  - type: rewrite
+    source: /*
+    destination: /index.html
+```
+
+All routes now work correctly, including:
+- Direct navigation to `/login`, `/dashboard`, etc.
+- Page refresh on any route
+- OAuth callback at `/auth/callback`
+
+**Deployment Method:** Blueprint via https://dashboard.render.com/blueprints
+
+**Verification:**
+```bash
+curl -I https://ayni-frontend.onrender.com/login
+# Returns: HTTP/2 200
+```
