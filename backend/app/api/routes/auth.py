@@ -15,6 +15,7 @@ from typing import Any
 import sentry_sdk
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from redis.asyncio import Redis
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -534,7 +535,7 @@ async def resend_verification(
 )
 async def google_authorize(
     request: Request,
-    redis: RedisClient = Depends(RedisClient.get_client),
+    redis: Redis = Depends(RedisClient.get_client),
 ) -> dict[str, str]:
     """
     Generate Google OAuth authorization URL.
@@ -616,7 +617,7 @@ async def google_callback(
     state: str,
     request: Request,
     session: AsyncSession = Depends(get_async_session),
-    redis: RedisClient = Depends(RedisClient.get_client),
+    redis: Redis = Depends(RedisClient.get_client),
 ) -> Any:
     """
     Google OAuth callback handler.
