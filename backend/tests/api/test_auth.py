@@ -59,7 +59,7 @@ def test_register_new_user(db: Session) -> None:
     assert tenant is not None
 
 
-def test_register_duplicate_email(_db: Session) -> None:
+def test_register_duplicate_email(db: Session) -> None:  # noqa: ARG001
     """
     Test registration fails with existing email.
 
@@ -87,7 +87,7 @@ def test_register_duplicate_email(_db: Session) -> None:
     assert "already exists" in response2.json()["detail"].lower()
 
 
-def test_login_success(_db: Session) -> None:
+def test_login_success(db: Session) -> None:  # noqa: ARG001
     """
     Test successful login returns JWT token.
 
@@ -121,7 +121,7 @@ def test_login_success(_db: Session) -> None:
     assert len(data["access_token"]) > 0
 
 
-def test_login_invalid_credentials(_db: Session) -> None:
+def test_login_invalid_credentials(db: Session) -> None:  # noqa: ARG001
     """
     Test login fails with invalid credentials.
 
@@ -138,7 +138,7 @@ def test_login_invalid_credentials(_db: Session) -> None:
     assert "detail" in response.json()
 
 
-def test_get_current_user(_db: Session) -> None:
+def test_get_current_user(db: Session) -> None:  # noqa: ARG001
     """
     Test GET /users/me returns current authenticated user.
 
@@ -178,7 +178,7 @@ def test_get_current_user(_db: Session) -> None:
     assert data["is_active"] is True
 
 
-def test_get_current_user_unauthorized(_db: Session) -> None:
+def test_get_current_user_unauthorized(db: Session) -> None:  # noqa: ARG001
     """
     Test GET /users/me fails without token.
 
@@ -190,7 +190,7 @@ def test_get_current_user_unauthorized(_db: Session) -> None:
     assert response.status_code == 401
 
 
-def test_register_invalid_email(_db: Session) -> None:
+def test_register_invalid_email(db: Session) -> None:  # noqa: ARG001
     """
     Test registration with invalid email format returns 422.
 
@@ -213,7 +213,7 @@ def test_register_invalid_email(_db: Session) -> None:
         assert response.status_code == 422, f"Failed for email: {invalid_email}"
 
 
-def test_register_weak_password(_db: Session) -> None:
+def test_register_weak_password(db: Session) -> None:  # noqa: ARG001
     """
     Test registration with password less than 8 characters returns 422.
 
@@ -232,7 +232,7 @@ def test_register_weak_password(_db: Session) -> None:
         assert "detail" in response.json()
 
 
-def test_login_unverified_email(_db: Session) -> None:
+def test_login_unverified_email(db: Session) -> None:  # noqa: ARG001
     """
     Test login with unverified email returns 401.
 
@@ -263,10 +263,11 @@ def test_login_unverified_email(_db: Session) -> None:
 
 def test_refresh_token_flow(db: Session) -> None:
     """
-    Test refresh token endpoint returns new access token.
+    Test refresh token endpoint returns new access token with rotation.
 
-    Review Finding: Missing test for refresh token functionality
-    AC#4 requires refresh token (30 days) implementation
+    Story 2.3 AC#3-4:
+    - Refresh token returns new access token
+    - Refresh token is rotated (new refresh token issued)
     """
     # Register and verify user
     email = "refreshtest@example.com"
@@ -298,18 +299,189 @@ def test_refresh_token_flow(db: Session) -> None:
     # Verify both tokens are present
     assert "access_token" in tokens
     assert "refresh_token" in tokens
-    refresh_token = tokens["refresh_token"]
+    old_refresh_token = tokens["refresh_token"]
+    old_access_token = tokens["access_token"]
 
-    # Use refresh token to get new access token
+    # Use refresh token to get new tokens
     refresh_response = client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        json={"refresh_token": refresh_token},
+        json={"refresh_token": old_refresh_token},
     )
 
     assert refresh_response.status_code == 200
     new_tokens = refresh_response.json()
     assert "access_token" in new_tokens
-    assert new_tokens["access_token"] != tokens["access_token"]  # Should be different
+    assert "refresh_token" in new_tokens
+
+    # Verify tokens rotated (Story 2.3 AC#4)
+    assert new_tokens["access_token"] != old_access_token
+    assert new_tokens["refresh_token"] != old_refresh_token
+
+
+def test_refresh_token_rotation_invalidates_old_token(db: Session) -> None:
+    """
+    Test that old refresh token is invalidated after rotation.
+
+    Story 2.3 AC#4: Old refresh token should be marked as used and rejected.
+    """
+    # Register and verify user
+    email = "rotation@example.com"
+    password = "testpassword123"
+
+    client.post(
+        f"{settings.API_V1_STR}/auth/register",
+        json={"email": email, "password": password},
+    )
+
+    user = db.exec(select(User).where(User.email == email)).first()
+    user.is_verified = True
+    db.add(user)
+    db.commit()
+
+    # Login
+    login_response = client.post(
+        f"{settings.API_V1_STR}/auth/login",
+        data={"username": email, "password": password},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    old_refresh_token = login_response.json()["refresh_token"]
+
+    # Refresh tokens (this should invalidate old refresh token)
+    client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": old_refresh_token},
+    )
+
+    # Try to use old refresh token again - should fail
+    reuse_response = client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": old_refresh_token},
+    )
+
+    assert reuse_response.status_code == 401
+    assert "invalid" in reuse_response.json()["detail"].lower()
+
+
+def test_refresh_token_stored_in_database(db: Session) -> None:
+    """
+    Test that refresh tokens are stored securely in database.
+
+    Story 2.3 AC#1-2: Refresh tokens stored with hash, expires_at, user_id.
+    """
+    from app.models import RefreshToken
+
+    email = "dbtoken@example.com"
+    password = "testpassword123"
+
+    # Register and verify
+    client.post(
+        f"{settings.API_V1_STR}/auth/register",
+        json={"email": email, "password": password},
+    )
+
+    user = db.exec(select(User).where(User.email == email)).first()
+    user.is_verified = True
+    db.add(user)
+    db.commit()
+
+    # Login
+    login_response = client.post(
+        f"{settings.API_V1_STR}/auth/login",
+        data={"username": email, "password": password},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_response.status_code == 200
+
+    # Check database for refresh token
+    db_tokens = db.exec(
+        select(RefreshToken).where(RefreshToken.user_id == user.id)
+    ).all()
+
+    assert len(db_tokens) > 0
+    token = db_tokens[0]
+    assert token.user_id == user.id
+    assert token.token_hash is not None
+    assert token.expires_at is not None
+    assert token.created_at is not None
+    assert token.used_at is None
+    assert token.revoked_at is None
+
+
+def test_logout_revokes_refresh_tokens(db: Session) -> None:
+    """
+    Test logout revokes all refresh tokens for user.
+
+    Story 2.3 AC#2, AC#4: Logout invalidates refresh tokens.
+    """
+    from app.models import RefreshToken
+
+    email = "logout@example.com"
+    password = "testpassword123"
+
+    # Register and verify
+    client.post(
+        f"{settings.API_V1_STR}/auth/register",
+        json={"email": email, "password": password},
+    )
+
+    user = db.exec(select(User).where(User.email == email)).first()
+    user.is_verified = True
+    db.add(user)
+    db.commit()
+
+    # Login
+    login_response = client.post(
+        f"{settings.API_V1_STR}/auth/login",
+        data={"username": email, "password": password},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    tokens = login_response.json()
+    access_token = tokens["access_token"]
+    refresh_token = tokens["refresh_token"]
+
+    # Logout
+    logout_response = client.post(
+        f"{settings.API_V1_STR}/auth/logout",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert logout_response.status_code == 200
+
+    # Check tokens are revoked in database
+    db.expire_all()  # Refresh from database
+    db_tokens = db.exec(
+        select(RefreshToken).where(RefreshToken.user_id == user.id)
+    ).all()
+
+    for token in db_tokens:
+        assert token.revoked_at is not None
+
+    # Try to use refresh token after logout - should fail
+    refresh_response = client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": refresh_token},
+    )
+    assert refresh_response.status_code == 401
+
+
+def test_invalid_refresh_token_returns_401(db: Session) -> None:  # noqa: ARG001
+    """
+    Test invalid refresh token returns 401.
+
+    Story 2.3 AC#3: Invalid tokens should be rejected.
+    """
+    # Try with completely invalid token
+    response = client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": "invalid.token.here"},
+    )
+    assert response.status_code == 401
+
+    # Try with empty token
+    response = client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": ""},
+    )
+    assert response.status_code == 401
 
 
 def test_jwt_token_payload_structure(db: Session) -> None:

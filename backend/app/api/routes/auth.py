@@ -12,7 +12,6 @@ import uuid
 from datetime import timedelta
 from typing import Any
 
-import jwt
 import sentry_sdk
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -25,9 +24,7 @@ from app.core.db import get_async_session
 from app.core.redis import RedisClient
 from app.core.security import (
     create_access_token,
-    create_refresh_token,
     create_verification_token,
-    decode_token,
     get_password_hash,
     verify_email_token,
     verify_password,
@@ -40,6 +37,12 @@ from app.models import (
     User,
     UserPublic,
     UserRegister,
+)
+from app.services.token_service import (
+    create_and_store_refresh_token,
+    invalidate_refresh_token,
+    revoke_all_user_tokens,
+    verify_refresh_token,
 )
 
 router = APIRouter()
@@ -214,12 +217,8 @@ async def login(
         email=user.email,
     )
 
-    # Create refresh token (30 days expiration per Story 2.1 AC#4)
-    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    refresh_token = create_refresh_token(
-        subject=str(user.id),
-        expires_delta=refresh_token_expires,
-    )
+    # Create and store refresh token in database (30 days expiration per Story 2.3 AC#1)
+    refresh_token = await create_and_store_refresh_token(user.id, session)
 
     # Log successful login
     sentry_sdk.add_breadcrumb(
@@ -250,19 +249,22 @@ async def refresh_access_token(
     session: AsyncSession = Depends(get_async_session),
 ) -> Any:
     """
-    Refresh access token using a valid refresh token.
+    Refresh access token using a valid refresh token with rotation.
 
     **Flow:**
-    1. Validate the refresh token
-    2. Extract user ID from token
+    1. Validate the refresh token from database
+    2. Check if token exists, not used, not revoked, not expired
     3. Load user from database
     4. Generate new access token with current user data
-    5. Return new access token
+    5. Generate new refresh token (rotation)
+    6. Invalidate old refresh token (mark as used)
+    7. Return new access and refresh tokens
 
-    **Security:**
+    **Security (Story 2.3 AC#3-4):**
     - Refresh token must be valid and not expired
-    - Refresh token must have type="refresh"
-    - Returns 401 if token is invalid, expired, or user not found
+    - Refresh token must exist in database (not used, not revoked)
+    - Token rotation: old token invalidated, new one issued
+    - Returns 401 if token is invalid, expired, used, or user not found
     - New access token includes current user data (role, tenant_id may have changed)
 
     **Request:**
@@ -270,63 +272,45 @@ async def refresh_access_token(
 
     **Response:**
     - access_token: New JWT access token (24 hour expiration)
+    - refresh_token: New JWT refresh token (30 day expiration)
     - token_type: "bearer"
     """
-    try:
-        # Decode and validate refresh token
-        payload = decode_token(refresh_token)
+    # Verify refresh token from database
+    user = await verify_refresh_token(refresh_token, session)
 
-        # Verify it's a refresh token
-        if payload.get("type") != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type. Expected refresh token.",
-            )
-
-        # Get user ID from token
-        user_id_str = payload.get("sub")
-        if not user_id_str:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload",
-            )
-
-        # Convert to UUID and fetch user
-        user_id = uuid.UUID(user_id_str)
-        result = await session.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found",
-            )
-
-        # Check if user is still active
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account is inactive",
-            )
-
-        # Generate new access token with CURRENT user data
-        # (role, tenant_id, email may have changed since refresh token was issued)
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            subject=str(user.id),
-            expires_delta=access_token_expires,
-            tenant_id=user.tenant_id,
-            role=user.role,
-            email=user.email,
-        )
-
-        return Token(access_token=access_token, token_type="bearer")
-
-    except jwt.InvalidTokenError as e:
+    if not user:
+        # Log failed refresh attempt
+        logger.warning("Failed refresh token attempt: invalid or expired token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired refresh token: {str(e)}",
+            detail="Invalid or expired refresh token",
         )
+
+    # Generate new access token with CURRENT user data
+    # (role, tenant_id, email may have changed since refresh token was issued)
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        subject=str(user.id),
+        expires_delta=access_token_expires,
+        tenant_id=user.tenant_id,
+        role=user.role,
+        email=user.email,
+    )
+
+    # Generate new refresh token (rotation per Story 2.3 AC#4)
+    new_refresh_token = await create_and_store_refresh_token(user.id, session)
+
+    # Invalidate old refresh token (mark as used)
+    await invalidate_refresh_token(refresh_token, session, mark_as="used")
+
+    # Log successful token refresh
+    logger.info(f"Token refreshed for user {user.email} (user_id={user.id})")
+
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        refresh_token=new_refresh_token,
+    )
 
 
 @router.get("/users/me", response_model=UserPublic, tags=["users"])
@@ -342,16 +326,35 @@ async def read_users_me(
 
 
 @router.post("/auth/logout", response_model=Message, tags=["auth"])
-async def logout() -> Any:
+async def logout(
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> Any:
     """
-    Logout endpoint (stateless JWT).
+    Logout endpoint with refresh token revocation.
 
-    Since we use stateless JWT tokens, logout is handled client-side
-    by deleting the token from storage.
+    **Flow:**
+    1. Get current authenticated user from JWT
+    2. Revoke all refresh tokens for this user
+    3. Return success message
 
-    For production, consider implementing token blacklisting using Redis
-    (Story 1.4 Redis infrastructure is available).
+    **Security (Story 2.3 AC#2, AC#4):**
+    - Revokes all refresh tokens for the user (logout from all devices)
+    - Client must delete access token from storage
+    - Access tokens continue to work until expiration (24h max)
+
+    **Note:**
+    For single-device logout with Redis blacklist, see Story 2.3 technical notes.
+    Current implementation revokes all refresh tokens for security.
     """
+    # Revoke all refresh tokens for this user
+    revoked_count = await revoke_all_user_tokens(current_user.id, session)
+
+    # Log logout
+    logger.info(
+        f"User logged out: {current_user.email} (user_id={current_user.id}, tokens_revoked={revoked_count})"
+    )
+
     return Message(message="Successfully logged out")
 
 

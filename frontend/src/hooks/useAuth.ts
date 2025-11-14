@@ -30,8 +30,11 @@ export const useAuth = create<AuthState>((set) => ({
     try {
       const tokenResponse = await apiLogin(email, password)
 
-      // Store token in localStorage
+      // Store tokens in localStorage (Story 2.3 AC#1)
       localStorage.setItem('access_token', tokenResponse.access_token)
+      if (tokenResponse.refresh_token) {
+        localStorage.setItem('refresh_token', tokenResponse.refresh_token)
+      }
 
       // Fetch user profile
       const user = await getCurrentUser()
@@ -72,6 +75,9 @@ export const useAuth = create<AuthState>((set) => ({
 
   logout: () => {
     apiLogout()
+    // Clear both access and refresh tokens (Story 2.3 AC#2)
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
     set({
       user: null,
       isAuthenticated: false,

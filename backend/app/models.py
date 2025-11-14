@@ -134,6 +134,29 @@ class User(UserBase, table=True):
     # Relationships
     tenant: Tenant | None = Relationship(back_populates="users")
     items: list["Item"] = Relationship(back_populates="owner", cascade_delete=True)
+    refresh_tokens: list["RefreshToken"] = Relationship(
+        back_populates="user", cascade_delete=True
+    )
+
+
+# RefreshToken model for secure token storage and rotation
+class RefreshToken(SQLModel, table=True):
+    """Refresh token model for JWT token rotation and session persistence"""
+
+    __tablename__ = "refresh_tokens"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    token_hash: str = Field(max_length=255, nullable=False, index=True)
+    expires_at: datetime = Field(nullable=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    used_at: datetime | None = Field(default=None)
+    revoked_at: datetime | None = Field(default=None)
+
+    # Relationships
+    user: User | None = Relationship(back_populates="refresh_tokens")
 
 
 # Properties to return via API, id is always required
