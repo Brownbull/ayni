@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import EmailVerification from './pages/EmailVerification'
+import VerifyEmail from './pages/VerifyEmail'
 import { useAuth } from './hooks/useAuth'
 import './App.css'
 
@@ -20,6 +21,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/email-verification" element={<EmailVerification />} />
+        <Route path="/auth/verify" element={<VerifyEmail />} />
 
         {/* Dashboard route (protected) */}
         <Route

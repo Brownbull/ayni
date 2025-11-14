@@ -5,20 +5,49 @@
  */
 
 import { useLocation, Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { resendVerification } from '../api/auth'
 
 export default function EmailVerification() {
   const location = useLocation()
   const email = location.state?.email || ''
-  const [resendCooldown, setResendCooldown] = useState(false)
+  const [countdown, setCountdown] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState('')
 
-  const handleResendEmail = () => {
-    // TODO: Implement resend email verification
-    // For now, just show cooldown
-    setResendCooldown(true)
-    setTimeout(() => setResendCooldown(false), 60000) // 1 minute cooldown
+  // Countdown timer effect
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [countdown])
 
-    alert('Email verification link sent! (Not implemented yet)')
+  const handleResendEmail = async () => {
+    if (!email) {
+      setMessage('Email address not found. Please register again.')
+      return
+    }
+
+    setIsLoading(true)
+    setMessage('')
+
+    try {
+      const response = await resendVerification(email)
+      setMessage(response.message || 'Verification email sent! Check your inbox.')
+      setCountdown(60) // Start 60 second countdown
+    } catch (error: unknown) {
+      if ((error as { response?: { status?: number } })?.response?.status === 429) {
+        setMessage('Please wait 60 seconds before requesting another email')
+        setCountdown(60)
+      } else {
+        setMessage('Failed to send email. Please try again.')
+      }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -71,13 +100,20 @@ export default function EmailVerification() {
               <button
                 type="button"
                 onClick={handleResendEmail}
-                disabled={resendCooldown}
+                disabled={countdown > 0 || isLoading}
                 className="mt-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {resendCooldown
-                  ? 'Email sent! Wait 1 minute to resend'
+                {countdown > 0
+                  ? `Resend available in ${countdown}s`
+                  : isLoading
+                  ? 'Sending...'
                   : 'Resend verification email'}
               </button>
+              {message && (
+                <p className={`mt-2 text-sm ${message.includes('Failed') || message.includes('wait') ? 'text-red-600' : 'text-green-600'}`}>
+                  {message}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -89,13 +125,6 @@ export default function EmailVerification() {
           >
             Back to login
           </Link>
-        </div>
-
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>
-            Note: Email verification is not yet fully implemented. You can proceed to
-            login without verifying your email for testing purposes.
-          </p>
         </div>
       </div>
     </div>

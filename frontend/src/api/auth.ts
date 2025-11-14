@@ -71,3 +71,23 @@ export const getCurrentUser = async (): Promise<User> => {
 export const logout = (): void => {
   localStorage.removeItem('access_token')
 }
+
+/**
+ * Verify email with token from verification link
+ */
+export const verifyEmail = async (token: string): Promise<{ message: string }> => {
+  const response = await apiClient.post<{ message: string }>('/auth/verify-email', null, {
+    params: { token },
+  })
+  return response.data
+}
+
+/**
+ * Resend verification email
+ */
+export const resendVerification = async (email: string): Promise<{ message: string }> => {
+  const response = await apiClient.post<{ message: string }>('/auth/resend-verification', {
+    email,
+  })
+  return response.data
+}

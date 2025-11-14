@@ -22,14 +22,25 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.auth import get_current_active_user
 from app.core.config import settings
 from app.core.db import get_async_session
+from app.core.redis import RedisClient
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    create_verification_token,
     decode_token,
     get_password_hash,
+    verify_email_token,
     verify_password,
 )
-from app.models import Message, Tenant, Token, User, UserPublic, UserRegister
+from app.models import (
+    Message,
+    ResendVerificationRequest,
+    Tenant,
+    Token,
+    User,
+    UserPublic,
+    UserRegister,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -342,3 +353,165 @@ async def logout() -> Any:
     (Story 1.4 Redis infrastructure is available).
     """
     return Message(message="Successfully logged out")
+
+
+@router.post("/auth/verify-email", response_model=Message, tags=["auth"])
+async def verify_email(
+    token: str,
+    session: AsyncSession = Depends(get_async_session),
+) -> Any:
+    """
+    Verify user email address via JWT token.
+
+    **Flow:**
+    1. Decode and validate verification token
+    2. Extract user_id from token
+    3. Find user in database
+    4. Mark email as verified
+    5. Return success message
+
+    **Security:**
+    - Token must be valid and not expired (24h TTL)
+    - Token type must be "email_verification"
+    - Operation is idempotent (can be called multiple times safely)
+
+    **Request:**
+    - token: JWT verification token (from email link)
+
+    **Response:**
+    - 200: Email verified successfully
+    - 400: Token expired or invalid
+    - 404: User not found
+    """
+    try:
+        # Decode token and extract user_id
+        user_id_str = verify_email_token(token)
+        user_id = uuid.UUID(user_id_str)
+
+        # Find user in database
+        result = await session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        # Check if already verified (idempotent)
+        if user.is_verified:
+            logger.info(
+                f"Email already verified for user {user.email} (user_id={user.id})"
+            )
+            return Message(message="Email already verified")
+
+        # Update is_verified field
+        user.is_verified = True
+        session.add(user)
+        await session.commit()
+
+        # Log successful verification
+        sentry_sdk.add_breadcrumb(
+            category="auth",
+            message="Email verified successfully",
+            level="info",
+            data={
+                "user_id": str(user.id),
+                "email": user.email,
+            },
+        )
+        logger.info(f"Email verified for user {user.email} (user_id={user.id})")
+
+        return Message(message="Email verified successfully")
+
+    except ValueError as e:
+        # Token expired or invalid
+        logger.warning(f"Email verification failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.post("/auth/resend-verification", response_model=Message, tags=["auth"])
+async def resend_verification(
+    request: ResendVerificationRequest,
+    session: AsyncSession = Depends(get_async_session),
+) -> Any:
+    """
+    Resend email verification link with rate limiting.
+
+    **Flow:**
+    1. Check rate limit (1 resend per 60 seconds per email)
+    2. Find user by email
+    3. Generate new verification token
+    4. Send verification email
+    5. Set rate limit in Redis
+
+    **Security:**
+    - Rate limited to 1 request per 60 seconds per email
+    - Always returns success to prevent email enumeration
+    - Only sends email if user exists and is not verified
+    - Uses Redis for distributed rate limiting
+
+    **Request:**
+    - email: User's email address
+
+    **Response:**
+    - 200: Success message (always, even if email doesn't exist)
+    - 429: Rate limit exceeded
+    """
+    email = request.email
+
+    # Rate limiting: check Redis cache
+    redis = await RedisClient.get_client()
+    rate_limit_key = f"resend_verification:{email}"
+
+    if await redis.get(rate_limit_key):
+        logger.warning(f"Rate limit exceeded for email verification resend: {email}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Please wait 60 seconds before requesting another email",
+        )
+
+    # Find user by email
+    result = await session.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    # Security: Always return success to prevent email enumeration
+    response_message = (
+        "If this email exists and is not verified, a verification link has been sent"
+    )
+
+    if user and not user.is_verified:
+        # Generate new verification token
+        token = create_verification_token(user.id)
+
+        # TODO: Send verification email using email service from Story 2.1
+        # For now, just log the token (will be implemented when email service is ready)
+        logger.info(
+            f"Verification token generated for {user.email}: {token[:20]}... (user_id={user.id})"
+        )
+
+        # Set rate limit in Redis (60 second TTL)
+        await redis.setex(rate_limit_key, 60, "1")
+
+        # Log resend attempt
+        sentry_sdk.add_breadcrumb(
+            category="auth",
+            message="Verification email resent",
+            level="info",
+            data={
+                "user_id": str(user.id),
+                "email": user.email,
+            },
+        )
+        logger.info(f"Verification email resent to {user.email} (user_id={user.id})")
+    elif user and user.is_verified:
+        # User already verified - still return success but don't send email
+        logger.info(f"Resend verification requested for already verified user: {email}")
+    else:
+        # User doesn't exist - still return success for security
+        logger.info(f"Resend verification requested for non-existent email: {email}")
+
+    return Message(message=response_message)

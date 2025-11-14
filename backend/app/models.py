@@ -139,6 +139,7 @@ class User(UserBase, table=True):
 # Properties to return via API, id is always required
 class UserPublic(UserBase):
     id: uuid.UUID
+    is_verified: bool
 
 
 class UsersPublic(SQLModel):
@@ -202,3 +203,9 @@ class TokenPayload(SQLModel):
 class NewPassword(SQLModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
+
+
+class ResendVerificationRequest(SQLModel):
+    email: EmailStr = Field(
+        max_length=255, description="Email address to resend verification to"
+    )

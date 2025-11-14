@@ -98,6 +98,66 @@ def decode_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, settings.JWT_SECRET, algorithms=[ALGORITHM])
 
 
+def create_verification_token(
+    user_id: str | Any, expires_delta: timedelta | None = None
+) -> str:
+    """
+    Create JWT email verification token.
+
+    Args:
+        user_id: User ID (UUID as string)
+        expires_delta: Token expiration time (default: 24 hours)
+
+    Returns:
+        Encoded JWT verification token
+    """
+    if expires_delta is None:
+        expires_delta = timedelta(hours=24)
+
+    expire = datetime.now(timezone.utc) + expires_delta
+    to_encode = {
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "sub": str(user_id),
+        "type": "email_verification",
+    }
+
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def verify_email_token(token: str) -> str:
+    """
+    Decode and validate email verification token.
+
+    Args:
+        token: JWT verification token string
+
+    Returns:
+        User ID extracted from token
+
+    Raises:
+        ValueError: If token is expired, invalid, or wrong type
+    """
+    try:
+        payload = decode_token(token)
+
+        # Validate token type
+        if payload.get("type") != "email_verification":
+            raise ValueError("Invalid token type")
+
+        user_id = payload.get("sub")
+        if not user_id:
+            raise ValueError("Missing user_id in token")
+
+        return user_id
+
+    except jwt.ExpiredSignatureError:
+        raise ValueError("Verification token expired")
+    except jwt.InvalidTokenError as e:
+        raise ValueError(f"Invalid verification token: {str(e)}")
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
