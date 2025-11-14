@@ -558,53 +558,69 @@ async def google_authorize(
     **Returns:**
     - authorization_url: Google OAuth consent screen URL
     """
-    from app.core.oauth import google_oauth_client
+    try:
+        from app.core.oauth import google_oauth_client
 
-    if not google_oauth_client:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Google OAuth is not configured. Please set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables.",
+        if not google_oauth_client:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Google OAuth is not configured. Please set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables.",
+            )
+
+        # Rate limiting: 10 requests per minute per IP
+        client_ip = request.client.host if request.client else "unknown"
+        rate_limit_key = f"oauth_authorize:{client_ip}"
+
+        # Get current count
+        current_count = await redis.get(rate_limit_key)
+        if current_count and int(current_count) >= 10:
+            logger.warning(
+                f"Rate limit exceeded for OAuth authorize from IP: {client_ip}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many OAuth authorization requests. Please try again in 1 minute.",
+            )
+
+        # Increment rate limit counter (60 second TTL)
+        if current_count:
+            await redis.incr(rate_limit_key)
+        else:
+            await redis.setex(rate_limit_key, 60, "1")
+
+        # Generate random state parameter for CSRF protection
+        import secrets
+
+        state = secrets.token_urlsafe(32)
+
+        # Store state in Redis with 5-minute expiration
+        await redis.setex(f"oauth_state:{state}", 300, "1")
+
+        # Generate authorization URL
+        authorization_url = await google_oauth_client.get_authorization_url(
+            redirect_uri=settings.GOOGLE_OAUTH_REDIRECT_URI,
+            state=state,
+            scope=["openid", "email", "profile"],
         )
 
-    # Rate limiting: 10 requests per minute per IP
-    client_ip = request.client.host if request.client else "unknown"
-    rate_limit_key = f"oauth_authorize:{client_ip}"
-
-    # Get current count
-    current_count = await redis.get(rate_limit_key)
-    if current_count and int(current_count) >= 10:
-        logger.warning(f"Rate limit exceeded for OAuth authorize from IP: {client_ip}")
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many OAuth authorization requests. Please try again in 1 minute.",
+        logger.info(
+            f"Generated Google OAuth authorization URL with state: {state[:8]}... from IP: {client_ip}"
         )
 
-    # Increment rate limit counter (60 second TTL)
-    if current_count:
-        await redis.incr(rate_limit_key)
-    else:
-        await redis.setex(rate_limit_key, 60, "1")
-
-    # Generate random state parameter for CSRF protection
-    import secrets
-
-    state = secrets.token_urlsafe(32)
-
-    # Store state in Redis with 5-minute expiration
-    await redis.setex(f"oauth_state:{state}", 300, "1")
-
-    # Generate authorization URL
-    authorization_url = await google_oauth_client.get_authorization_url(
-        redirect_uri=settings.GOOGLE_OAUTH_REDIRECT_URI,
-        state=state,
-        scope=["openid", "email", "profile"],
-    )
-
-    logger.info(
-        f"Generated Google OAuth authorization URL with state: {state[:8]}... from IP: {client_ip}"
-    )
-
-    return {"authorization_url": authorization_url}
+        return {"authorization_url": authorization_url}
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        # Log the actual error for debugging
+        logger.error(
+            f"OAuth authorize error: {type(e).__name__}: {str(e)}", exc_info=True
+        )
+        sentry_sdk.capture_exception(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate OAuth authorization URL: {str(e)}",
+        )
 
 
 @router.get(

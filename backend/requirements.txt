@@ -27,7 +27,9 @@ billiard==4.2.2
 cachetools==6.2.1
     # via premailer
 celery==5.5.3
-    # via app (pyproject.toml)
+    # via
+    #   app (pyproject.toml)
+    #   flower
 certifi==2025.11.12
     # via
     #   httpcore
@@ -87,6 +89,8 @@ fastapi-users==15.0.1
     #   fastapi-users-db-sqlalchemy
 fastapi-users-db-sqlalchemy==7.0.0
     # via fastapi-users
+flower==2.0.1
+    # via app (pyproject.toml)
 greenlet==3.2.4
     # via sqlalchemy
 h11==0.16.0
@@ -101,6 +105,11 @@ httpx==0.28.1
     # via
     #   app (pyproject.toml)
     #   fastapi
+    #   httpx-oauth
+httpx-oauth==0.16.1
+    # via app (pyproject.toml)
+humanize==4.14.0
+    # via flower
 idna==3.11
     # via
     #   anyio
@@ -137,6 +146,8 @@ passlib==1.7.4
     # via app (pyproject.toml)
 premailer==3.10.0
     # via emails
+prometheus-client==0.23.1
+    # via flower
 prompt-toolkit==3.0.52
     # via click-repl
 psycopg==3.2.12
@@ -176,6 +187,8 @@ python-multipart==0.0.20
     #   app (pyproject.toml)
     #   fastapi
     #   fastapi-users
+pytz==2025.2
+    # via flower
 pyyaml==6.0.3
     # via uvicorn
 redis==5.2.1
@@ -211,6 +224,8 @@ starlette==0.46.2
     # via fastapi
 tenacity==8.5.0
     # via app (pyproject.toml)
+tornado==6.5.2
+    # via flower
 typer==0.20.0
     # via fastapi-cli
 typing-extensions==4.15.0
