@@ -1,236 +1,404 @@
-# Deployment Documentation
+# Ayni Deployment Documentation
 
-This directory contains comprehensive documentation for deploying the Ayni application to production.
+Complete deployment guides for the Ayni application on Railway (backend) and Render (frontend).
 
 ## Quick Start
 
-1. **Deploy Backend to Railway**: Backend is already deployed and configured
-2. **Deploy Frontend to Render**: Follow [DEPLOY-FROM-BLUEPRINT.md](./DEPLOY-FROM-BLUEPRINT.md)
-3. **Verify Deployment**: Use [DEPLOYMENT-SUCCESS-CHECKLIST.md](./DEPLOYMENT-SUCCESS-CHECKLIST.md)
+### 1. Deploy Backend (Railway)
+Follow → **[SETUP-BACKEND.md](./SETUP-BACKEND.md)**
+
+### 2. Deploy Frontend (Render)
+Follow → **[SETUP-FRONTEND.md](./SETUP-FRONTEND.md)**
+
+### 3. Verify Deployment
+Use → **[DEPLOYMENT-SUCCESS-CHECKLIST.md](./DEPLOYMENT-SUCCESS-CHECKLIST.md)**
+
+---
+
+## Documentation Structure
+
+### 📘 Setup Guides
+
+Complete deployment instructions for first-time setup:
+
+| Document | Purpose | Platform |
+|----------|---------|----------|
+| **[SETUP-BACKEND.md](./SETUP-BACKEND.md)** | Deploy FastAPI backend with PostgreSQL & Redis | Railway |
+| **[SETUP-FRONTEND.md](./SETUP-FRONTEND.md)** | Deploy React frontend using Blueprint | Render |
+
+### 🔧 Troubleshooting Guides
+
+Solutions for common issues:
+
+| Document | Purpose | Platform |
+|----------|---------|----------|
+| **[TROUBLESHOOTING-BACKEND.md](./TROUBLESHOOTING-BACKEND.md)** | Backend issues (CORS, OAuth, database, etc.) | Railway |
+| **[TROUBLESHOOTING-FRONTEND.md](./TROUBLESHOOTING-FRONTEND.md)** | Frontend issues (routing, build errors, etc.) | Render |
+
+### ✅ Verification
+
+| Document | Purpose |
+|----------|---------|
+| **[DEPLOYMENT-SUCCESS-CHECKLIST.md](./DEPLOYMENT-SUCCESS-CHECKLIST.md)** | Complete verification checklist with test commands |
+
+### 📋 OAuth Setup (Optional)
+
+| Document | Purpose |
+|----------|---------|
+| **[QUICK-OAUTH-SETUP.md](./QUICK-OAUTH-SETUP.md)** | 5-minute Google OAuth setup guide |
+
+---
 
 ## Production URLs
 
-- **Frontend**: https://ayni-frontend.onrender.com
-- **Backend API**: https://ayni-backend-production.up.railway.app/api/v1
-- **Backend Health**: https://ayni-backend-production.up.railway.app/health
+**Frontend:** https://ayni-frontend.onrender.com
+**Backend API:** https://ayni-backend-production.up.railway.app/api/v1
+**Backend Health:** https://ayni-backend-production.up.railway.app/health
 
-## Documentation Index
+---
 
-### Deployment Guides
-
-- **[DEPLOY-FROM-BLUEPRINT.md](./DEPLOY-FROM-BLUEPRINT.md)** - Step-by-step guide for deploying frontend using Render Blueprint
-- **[DEPLOYMENT-SUCCESS-CHECKLIST.md](./DEPLOYMENT-SUCCESS-CHECKLIST.md)** - Comprehensive checklist to verify successful deployment
-
-### Troubleshooting
-
-- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common deployment issues and solutions
-  - Build failures (TypeScript, dependencies)
-  - CORS errors
-  - OAuth issues
-  - Routing issues
-  - General debugging
-
-### Specific Issues (Resolved)
-
-- **[RENDER-SPA-ROUTING-FIX.md](./RENDER-SPA-ROUTING-FIX.md)** - SPA routing 404 errors (now resolved via Blueprint)
-
-### OAuth Configuration
-
-- **[QUICK-OAUTH-SETUP.md](./QUICK-OAUTH-SETUP.md)** - Quick setup guide for Google OAuth
-- **[oauth-setup-production.md](./oauth-setup-production.md)** - Production OAuth configuration
-
-## Architecture Overview
+## Technology Stack
 
 ### Backend (Railway)
-
-**Services:**
-- FastAPI application
-- PostgreSQL database
-- Redis cache
-
-**Environment Variables:**
-- `FRONTEND_HOST` - Render frontend URL (for CORS)
-- `JWT_SECRET` - Secret for JWT tokens
-- `GOOGLE_OAUTH_CLIENT_ID` - Google OAuth credentials (optional)
-- `GOOGLE_OAUTH_CLIENT_SECRET` - Google OAuth credentials (optional)
-- Database and Redis URLs (auto-configured by Railway)
+- **Framework:** FastAPI (Python 3.11)
+- **Database:** PostgreSQL 16
+- **Cache:** Redis 7
+- **Authentication:** JWT + OAuth 2.0
 
 ### Frontend (Render)
+- **Framework:** React 18 + TypeScript
+- **Build Tool:** Vite 5
+- **Routing:** React Router 6
+- **Deployment:** Static site with Blueprint
 
-**Configuration:**
-- Blueprint-based deployment from `render.yaml`
-- Static site with SPA routing
-- Security headers configured
+---
 
-**Environment Variables:**
-- `VITE_API_URL` - Railway backend URL
-- `VITE_ENVIRONMENT` - Deployment environment
-- `VITE_SENTRY_DSN` - Sentry monitoring (optional)
+## Deployment Architecture
 
-## Key Features Deployed
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Client Browser                       │
+└────────────────────────┬────────────────────────────────────┘
+                         │ HTTPS
+                         ▼
+         ┌───────────────────────────────────┐
+         │   Render (Static Frontend)        │
+         │   - React SPA                     │
+         │   - SPA routing configured        │
+         │   - Security headers              │
+         └───────────────┬───────────────────┘
+                         │ HTTPS (CORS configured)
+                         ▼
+         ┌───────────────────────────────────┐
+         │   Railway (Backend)               │
+         │   ┌─────────────────────────────┐ │
+         │   │   FastAPI Application       │ │
+         │   └─────────────────────────────┘ │
+         │   ┌───────────┐  ┌────────────┐  │
+         │   │ PostgreSQL│  │   Redis    │  │
+         │   └───────────┘  └────────────┘  │
+         └───────────────────────────────────┘
+```
 
-✅ **Authentication:**
-- Email/password registration and login
-- Email verification flow
-- JWT token authentication with refresh tokens
-- Google OAuth 2.0 integration
-
-✅ **Security:**
-- CORS configuration
-- Security headers (X-Frame-Options, CSP, etc.)
-- JWT token expiration and refresh
-
-✅ **User Experience:**
-- SPA routing (no 404 on refresh)
-- OAuth callback redirect flow
-- Protected routes
-- Persistent login state
+---
 
 ## Common Workflows
 
-### Deploy Frontend Changes
+### Initial Deployment
 
-1. Push changes to `main` branch
-2. Render auto-deploys from GitHub
-3. Wait 2-3 minutes for build
-4. Verify deployment with checklist
+1. **Setup Backend**
+   - Follow [SETUP-BACKEND.md](./SETUP-BACKEND.md)
+   - Deploy to Railway
+   - Configure environment variables
+   - Get backend URL
 
-### Deploy Backend Changes
+2. **Setup Frontend**
+   - Follow [SETUP-FRONTEND.md](./SETUP-FRONTEND.md)
+   - Deploy to Render using Blueprint
+   - Set backend URL in environment
+   - Get frontend URL
 
-1. Push changes to `main` branch
-2. Railway auto-deploys from GitHub
-3. Check logs: `railway logs`
-4. Verify health endpoint
+3. **Configure CORS**
+   - Add frontend URL to backend `FRONTEND_HOST`
+   - Railway auto-redeploys
+
+4. **Verify**
+   - Use [DEPLOYMENT-SUCCESS-CHECKLIST.md](./DEPLOYMENT-SUCCESS-CHECKLIST.md)
+   - Test all authentication flows
+   - Verify SPA routing works
+
+### Update Backend
+
+```bash
+# Make code changes
+git add .
+git commit -m "feat: new feature"
+git push
+
+# Railway auto-deploys from main branch
+# Monitor with:
+railway logs --tail
+```
+
+### Update Frontend
+
+```bash
+# Make code changes
+git add .
+git commit -m "feat: new feature"
+git push
+
+# Render auto-deploys from main branch
+# Check: Dashboard → Service → Deploys
+```
 
 ### Update Backend Dependencies
 
-1. Update `pyproject.toml`
-2. Regenerate requirements.txt:
-   ```bash
-   cd backend
-   uv pip compile pyproject.toml -o requirements.txt
-   git add requirements.txt
-   git commit -m "chore: update requirements.txt"
-   git push
-   ```
-3. Railway auto-deploys
+```bash
+# Update pyproject.toml
+# Then regenerate requirements.txt:
+cd backend
+uv pip compile pyproject.toml -o requirements.txt
+git add requirements.txt
+git commit -m "chore: update dependencies"
+git push
+```
 
-### Rollback Deployment
+### Rollback
 
-**Render:**
-1. Go to service → Deploys tab
-2. Find last working deployment
-3. Click "Redeploy"
+**Backend (Railway):**
+- Dashboard → Service → Deployments → Select version → Redeploy
 
-**Railway:**
-1. Go to service → Deployments tab
-2. Find last working deployment
-3. Click "Redeploy"
+**Frontend (Render):**
+- Dashboard → Service → Deploys → Select version → Redeploy
+
+---
 
 ## Troubleshooting Quick Reference
 
-| Issue | Quick Fix | Documentation |
-|-------|-----------|---------------|
-| Build fails with TypeScript errors | Update to latest main branch | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md#issue-render-frontend-build-fails-with-typescript-errors) |
-| CORS errors | Set `FRONTEND_HOST` in Railway | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md#issue-frontend-blocked-by-cors-policy) |
-| 404 on route refresh | Use Blueprint deployment | [RENDER-SPA-ROUTING-FIX.md](./RENDER-SPA-ROUTING-FIX.md) |
-| OAuth shows JSON | Update to latest main branch | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md#issue-oauth-callback-shows-json-instead-of-redirecting-to-dashboard) |
-| Missing dependencies | Regenerate requirements.txt | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md#issue-railway-backend-build-missing-dependencies) |
+### Backend Issues (Railway)
 
-## Monitoring & Logs
+| Issue | Fix | Documentation |
+|-------|-----|---------------|
+| ModuleNotFoundError | Regenerate requirements.txt | [Guide](./TROUBLESHOOTING-BACKEND.md#issue-missing-dependencies---modulenotfounderror) |
+| CORS error | Set FRONTEND_HOST | [Guide](./TROUBLESHOOTING-BACKEND.md#issue-frontend-blocked-by-cors-policy) |
+| Database error | Check PostgreSQL service | [Guide](./TROUBLESHOOTING-BACKEND.md#database-issues) |
+| Redis error | Check Redis service | [Guide](./TROUBLESHOOTING-BACKEND.md#redis-issues) |
+| OAuth 503 | Set OAuth variables | [Guide](./TROUBLESHOOTING-BACKEND.md#issue-oauth-not-configured-503) |
 
-### View Logs
+### Frontend Issues (Render)
 
-**Railway:**
+| Issue | Fix | Documentation |
+|-------|-----|---------------|
+| 404 on refresh | Use Blueprint deployment | [Guide](./TROUBLESHOOTING-FRONTEND.md#issue-404-on-page-refresh) |
+| TypeScript build error | Type-only imports | [Guide](./TROUBLESHOOTING-FRONTEND.md#issue-build-fails-with-typescript-errors) |
+| API requests fail | Check VITE_API_URL | [Guide](./TROUBLESHOOTING-FRONTEND.md#issue-api-requests-fail---network-error) |
+| Blank page | Check browser console | [Guide](./TROUBLESHOOTING-FRONTEND.md#issue-build-succeeds-but-site-is-blank) |
+| OAuth shows JSON | Backend needs update | [Guide](./TROUBLESHOOTING-FRONTEND.md#issue-oauth-shows-json-instead-of-redirecting-to-dashboard) |
+
+---
+
+## Environment Variables
+
+### Backend (Railway)
+
+**Required:**
 ```bash
-railway logs --limit 50
+FRONTEND_HOST=https://ayni-frontend.onrender.com
+JWT_SECRET=<64-char-random-string>
+PROJECT_NAME=Ayni
+ENVIRONMENT=production
 ```
 
-**Render:**
-- Dashboard → Service → Logs tab
+**Auto-configured:**
+```bash
+DATABASE_URL=<auto-set-by-railway>
+REDIS_URL=<auto-set-by-railway>
+```
 
-### Health Checks
+**Optional (OAuth):**
+```bash
+GOOGLE_OAUTH_CLIENT_ID=<from-google-console>
+GOOGLE_OAUTH_CLIENT_SECRET=<from-google-console>
+GOOGLE_OAUTH_REDIRECT_URI=https://your-backend.up.railway.app/api/v1/auth/google/callback
+```
 
-**Backend:**
+### Frontend (Render)
+
+**Set in render.yaml:**
+```bash
+VITE_API_URL=https://ayni-backend-production.up.railway.app/api/v1
+VITE_ENVIRONMENT=production
+```
+
+**Set during deployment:**
+```bash
+VITE_SENTRY_DSN=<optional>
+```
+
+---
+
+## Monitoring
+
+### Backend Health Check
+
 ```bash
 curl https://ayni-backend-production.up.railway.app/health
 ```
 
-**Frontend:**
+Expected response:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-11-14T20:00:00+00:00",
+  "services": {
+    "database": {"status": "healthy", "latency_ms": 10.5},
+    "redis": {"status": "healthy", "latency_ms": 5.2}
+  }
+}
+```
+
+### Frontend Check
+
 ```bash
 curl -I https://ayni-frontend.onrender.com
+# Should return HTTP/2 200
 ```
 
-### Check Deployment Status
+### CORS Check
 
-**Railway:**
 ```bash
-railway status
+curl -X OPTIONS https://ayni-backend-production.up.railway.app/api/v1/health \
+  -H "Origin: https://ayni-frontend.onrender.com" \
+  -H "Access-Control-Request-Method: GET" \
+  -i
+
+# Should include: access-control-allow-origin: https://ayni-frontend.onrender.com
 ```
 
-**Render:**
-- Dashboard → Service → Deploys tab
+### Logs
 
-## Security Considerations
+**Backend:**
+```bash
+railway logs --tail
+```
 
-### Production Secrets
+**Frontend:**
+- Dashboard → Service → Logs (build logs only)
+- Browser DevTools → Console (runtime errors)
 
-Never commit to repository:
-- `JWT_SECRET`
-- `GOOGLE_OAUTH_CLIENT_SECRET`
-- `SENTRY_DSN`
-- Database passwords
+---
 
-### HTTPS Enforcement
+## Security Best Practices
 
+### Secrets Management
+- ✅ All secrets in environment variables (never in code)
+- ✅ Different secrets for dev/production
+- ✅ Rotate JWT_SECRET quarterly
+- ✅ Keep OAuth credentials private
+
+### HTTPS
 - ✅ Railway provides HTTPS automatically
 - ✅ Render provides HTTPS automatically
 - ✅ OAuth requires HTTPS (enforced by Google)
 
-### CORS Configuration
+### CORS
+- ✅ Backend allows only configured frontend origin
+- ✅ Credentials allowed for authenticated requests
 
-- Backend allows only configured frontend origin
-- Preflight requests handled correctly
-- Credentials allowed for authenticated requests
+### Headers
+- ✅ Security headers configured via render.yaml
+- ✅ X-Frame-Options: DENY
+- ✅ X-Content-Type-Options: nosniff
+- ✅ Referrer-Policy: strict-origin-when-cross-origin
 
-## Performance Optimization
+---
 
-### Frontend
-- Vite build optimization enabled
-- Static assets served via Render CDN
-- Gzip compression enabled
+## Cost Optimization
 
-### Backend
-- Database connection pooling
-- Redis caching for OAuth state
-- Health check endpoint lightweight
+### Free Tier Limits
 
-## Future Enhancements
+**Railway:**
+- $5 free credit per month
+- Resources shared across all services
+- Scales to 8GB RAM, 8 vCPU
 
-Potential improvements:
-- [ ] Custom domains
-- [ ] CDN configuration
-- [ ] Advanced monitoring with Sentry
-- [ ] Rate limiting
-- [ ] Database backups configuration
-- [ ] Staging environment
-- [ ] CI/CD pipeline enhancements
+**Render:**
+- Free for static sites (no limits)
+- Cold start after 15 min inactivity
+- Shared CDN bandwidth
 
-## Support
+### Upgrade Triggers
 
-For issues not covered in this documentation:
+**Railway:** Upgrade when:
+- Free credit exhausted
+- Need always-on backend
+- Higher resource limits needed
 
-1. Check [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
-2. Review [DEPLOYMENT-SUCCESS-CHECKLIST.md](./DEPLOYMENT-SUCCESS-CHECKLIST.md)
-3. Check service logs (Railway/Render)
-4. Test endpoints with curl
-5. Verify environment variables
+**Render:** Upgrade when:
+- Need custom domain with SSL
+- Want faster cold starts
+- Need priority builds
 
-## Recent Changes
+---
 
-| Date | Change | Commit | Documentation |
-|------|--------|--------|---------------|
-| 2025-11-14 | OAuth redirect flow | `2c03230` | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md#issue-oauth-callback-shows-json-instead-of-redirecting-to-dashboard) |
-| 2025-11-14 | Blueprint deployment | - | [DEPLOY-FROM-BLUEPRINT.md](./DEPLOY-FROM-BLUEPRINT.md) |
-| 2025-11-14 | TypeScript fixes | `4e00303` | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md#issue-render-frontend-build-fails-with-typescript-errors) |
-| 2025-11-14 | Dependencies fix | `c6f5c90` | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md#issue-railway-backend-build-missing-dependencies) |
+## Recent Deployments
+
+| Date | Backend Commit | Frontend Commit | Status | Notes |
+|------|----------------|-----------------|--------|-------|
+| 2025-11-14 | `2c03230` | `2c03230` | ✅ Live | OAuth redirect flow |
+| 2025-11-14 | `c6f5c90` | `4e00303` | ✅ Live | Dependencies & TypeScript fixes |
+
+---
+
+## Next Steps After Deployment
+
+1. ✅ Backend and frontend deployed
+2. → Configure Google OAuth (optional) - [QUICK-OAUTH-SETUP.md](./QUICK-OAUTH-SETUP.md)
+3. → Set up monitoring (Sentry)
+4. → Configure custom domains (optional)
+5. → Set up automated backups
+6. → Create staging environment
+
+---
+
+## Support & Resources
+
+### Documentation
+- [Railway Docs](https://docs.railway.app)
+- [Render Docs](https://render.com/docs)
+- [FastAPI Docs](https://fastapi.tiangolo.com)
+- [React Docs](https://react.dev)
+
+### Status Pages
+- [Railway Status](https://status.railway.app)
+- [Render Status](https://status.render.com)
+
+### Community
+- [Railway Discord](https://discord.gg/railway)
+- [Render Community](https://community.render.com)
+
+### Internal Docs
+- Backend setup: [SETUP-BACKEND.md](./SETUP-BACKEND.md)
+- Frontend setup: [SETUP-FRONTEND.md](./SETUP-FRONTEND.md)
+- Backend issues: [TROUBLESHOOTING-BACKEND.md](./TROUBLESHOOTING-BACKEND.md)
+- Frontend issues: [TROUBLESHOOTING-FRONTEND.md](./TROUBLESHOOTING-FRONTEND.md)
+- Verification: [DEPLOYMENT-SUCCESS-CHECKLIST.md](./DEPLOYMENT-SUCCESS-CHECKLIST.md)
+
+---
+
+## Contributing
+
+When updating deployment docs:
+
+1. Test changes in production first
+2. Update relevant guide (setup or troubleshooting)
+3. Update this README if structure changes
+4. Document commit hash for fixes
+5. Update "Recent Deployments" table
+
+---
+
+**Last Updated:** 2025-11-14
+**Deployment Status:** ✅ Production Ready
+**Documentation Version:** 2.0 (Consolidated)
