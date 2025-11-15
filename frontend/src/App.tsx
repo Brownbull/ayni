@@ -5,6 +5,8 @@ import Register from './pages/Register'
 import EmailVerification from './pages/EmailVerification'
 import VerifyEmail from './pages/VerifyEmail'
 import OAuthCallback from './pages/OAuthCallback'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import { useAuth } from './hooks/useAuth'
 import './App.css'
 
@@ -24,6 +26,8 @@ function App() {
         <Route path="/email-verification" element={<EmailVerification />} />
         <Route path="/auth/verify" element={<VerifyEmail />} />
         <Route path="/auth/callback" element={<OAuthCallback />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Dashboard route (protected) */}
         <Route
