@@ -1,6 +1,7 @@
 import uuid
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import Session, select
 
 from app.core.security import get_password_hash, verify_password
@@ -31,14 +32,17 @@ def update_user(*, session: Session, db_user: User, user_in: UserUpdate) -> Any:
     return db_user
 
 
-def get_user_by_email(*, session: Session, email: str) -> User | None:
+async def get_user_by_email(*, session: AsyncSession, email: str) -> User | None:
     statement = select(User).where(User.email == email)
-    session_user = session.exec(statement).first()
+    result = await session.execute(statement)
+    session_user = result.scalar_one_or_none()
     return session_user
 
 
-def authenticate(*, session: Session, email: str, password: str) -> User | None:
-    db_user = get_user_by_email(session=session, email=email)
+async def authenticate(
+    *, session: AsyncSession, email: str, password: str
+) -> User | None:
+    db_user = await get_user_by_email(session=session, email=email)
     if not db_user:
         return None
     if not verify_password(password, db_user.hashed_password):
