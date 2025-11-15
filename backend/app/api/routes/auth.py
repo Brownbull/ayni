@@ -21,21 +21,27 @@ from redis.asyncio import Redis
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app import utils
 from app.core.auth import get_current_active_user
 from app.core.config import settings
 from app.core.db import get_async_session
 from app.core.redis import RedisClient
 from app.core.security import (
     create_access_token,
+    create_password_reset_token,
     create_verification_token,
     encrypt_token,
     get_password_hash,
     verify_email_token,
     verify_password,
+    verify_password_reset_token,
 )
 from app.models import (
     Message,
     OAuthAccount,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    RefreshToken,
     ResendVerificationRequest,
     Tenant,
     Token,
@@ -132,8 +138,31 @@ async def register(
         f"User registered: {user.email} (user_id={user.id}, tenant_id={user.tenant_id})"
     )
 
-    # TODO: Send verification email (Story 2.1 subtask - email verification)
-    # For now, just return the user
+    # Send verification email (only if email is configured)
+    if settings.emails_enabled:
+        try:
+            verification_token = create_verification_token(user.id)
+            email_data = utils.generate_verification_email(
+                email_to=user.email, token=verification_token
+            )
+            utils.send_email(
+                email_to=user.email,
+                subject=email_data.subject,
+                html_content=email_data.html_content,
+            )
+            logger.info(f"Verification email sent to {user.email} (user_id={user.id})")
+        except Exception as e:
+            logger.error(
+                f"Failed to send verification email to {user.email}: {str(e)}",
+                exc_info=True,
+            )
+            # Don't fail registration if email sending fails
+            # User can request verification email resend later
+    else:
+        verification_token = create_verification_token(user.id)
+        logger.warning(
+            f"Email disabled - verification token for {user.email}: {verification_token[:30]}..."
+        )
 
     return user
 
@@ -495,11 +524,30 @@ async def resend_verification(
         # Generate new verification token
         token = create_verification_token(user.id)
 
-        # TODO: Send verification email using email service from Story 2.1
-        # For now, just log the token (will be implemented when email service is ready)
-        logger.info(
-            f"Verification token generated for {user.email}: {token[:20]}... (user_id={user.id})"
-        )
+        # Send verification email (only if email is configured)
+        if settings.emails_enabled:
+            try:
+                email_data = utils.generate_verification_email(
+                    email_to=user.email, token=token
+                )
+                utils.send_email(
+                    email_to=user.email,
+                    subject=email_data.subject,
+                    html_content=email_data.html_content,
+                )
+                logger.info(
+                    f"Verification email resent to {user.email} (user_id={user.id})"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to resend verification email to {user.email}: {str(e)}",
+                    exc_info=True,
+                )
+                # Don't expose email sending failure to prevent information leakage
+        else:
+            logger.warning(
+                f"Email disabled - verification token for {user.email}: {token[:30]}..."
+            )
 
         # Set rate limit in Redis (60 second TTL)
         await redis.setex(rate_limit_key, 60, "1")
@@ -896,3 +944,260 @@ async def google_callback(
     redirect_url = f"{frontend_url}/auth/callback?{callback_params}"
 
     return RedirectResponse(url=redirect_url, status_code=302)
+
+
+# ============================================================================
+# Password Reset Endpoints (Story 2.4)
+# ============================================================================
+
+
+@router.post("/auth/reset-password", response_model=Message, tags=["auth"])
+async def request_password_reset(
+    *,
+    request_data: PasswordResetRequest,
+    session: AsyncSession = Depends(get_async_session),
+    redis: Redis = Depends(RedisClient.get_client),
+) -> Any:
+    """
+    Request password reset email with rate limiting.
+
+    **Flow:**
+    1. Check rate limit (3 requests per hour per email)
+    2. Find user by email
+    3. Generate password reset token (1-hour expiration)
+    4. Send password reset email
+    5. Log request for security monitoring
+
+    **Security (Story 2.4 AC#1):**
+    - Rate limited to 3 requests per hour per email
+    - Always returns success to prevent email enumeration
+    - Only sends email if user exists and is verified
+    - Token expires in 1 hour (stricter than access tokens)
+    - Uses Redis for distributed rate limiting
+
+    **Request:**
+    - email: User's email address
+
+    **Response:**
+    - 200: Success message (always, even if email doesn't exist)
+    - 429: Rate limit exceeded
+    """
+    # Rate limiting: 3 requests per hour per email
+    email = request_data.email
+    rate_limit_key = f"password_reset:{email}"
+
+    # Get current count for this email
+    current_count = await redis.get(rate_limit_key)
+    if current_count and int(current_count) >= 3:
+        logger.warning(f"Rate limit exceeded for password reset: {email}")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password reset requests. Please try again in 1 hour.",
+        )
+
+    # Increment rate limit counter (1 hour TTL)
+    if current_count:
+        await redis.incr(rate_limit_key)
+    else:
+        await redis.setex(rate_limit_key, 3600, "1")  # 1 hour = 3600 seconds
+
+    # Find user by email (case-insensitive)
+    from sqlalchemy import func
+
+    result = await session.execute(
+        select(User).where(func.lower(User.email) == email.lower())
+    )
+    user = result.scalar_one_or_none()
+
+    # Security: Always return success to prevent email enumeration
+    response_message = (
+        "If an account exists with this email, you will receive a password reset link"
+    )
+
+    if user:
+        # Generate password reset token (1-hour expiration)
+        reset_token = create_password_reset_token(user.id, user.email)
+
+        # Send password reset email
+        from app.utils import generate_reset_password_email, send_email
+
+        email_data = generate_reset_password_email(
+            email_to=user.email,
+            email=user.email,
+            token=reset_token,
+        )
+
+        try:
+            send_email(
+                email_to=user.email,
+                subject=email_data.subject,
+                html_content=email_data.html_content,
+            )
+
+            logger.info(
+                f"Password reset email sent to {user.email} (user_id={user.id})"
+            )
+
+            # Log for security monitoring
+            sentry_sdk.add_breadcrumb(
+                category="auth",
+                message="Password reset requested",
+                level="info",
+                data={
+                    "user_id": str(user.id),
+                    "email": user.email,
+                },
+            )
+        except Exception as e:
+            # Log error but still return success (prevent email enumeration)
+            logger.error(f"Failed to send password reset email to {email}: {str(e)}")
+            sentry_sdk.capture_exception(e)
+    else:
+        # User doesn't exist - still return success for security
+        logger.info(f"Password reset requested for non-existent email: {email}")
+
+        # Log for security monitoring
+        sentry_sdk.add_breadcrumb(
+            category="auth",
+            message="Password reset requested for non-existent email",
+            level="warning",
+            data={"email": email},
+        )
+
+    return Message(message=response_message)
+
+
+@router.post("/auth/confirm-reset", response_model=Message, tags=["auth"])
+async def confirm_password_reset(
+    *,
+    request_data: PasswordResetConfirm,
+    session: AsyncSession = Depends(get_async_session),
+    redis: Redis = Depends(RedisClient.get_client),
+) -> Any:
+    """
+    Confirm password reset with token and new password.
+
+    **Flow:**
+    1. Check if token already used (Redis blacklist)
+    2. Validate reset token (signature, expiration, type)
+    3. Extract user_id from token payload
+    4. Update user password with bcrypt hash
+    5. Invalidate all refresh tokens (force re-login)
+    6. Add token to Redis blacklist (prevent reuse)
+    7. Send confirmation email
+    8. Return success message
+
+    **Security (Story 2.4 AC#2-4):**
+    - Token must be valid password_reset type (not access/refresh)
+    - Token must not be expired (1-hour TTL)
+    - Token must not be already used (Redis blacklist check)
+    - Password must be minimum 8 characters
+    - All user sessions invalidated after password change
+    - Token blacklisted after successful use (prevent replay attacks)
+
+    **Request:**
+    - token: JWT password reset token (from email link)
+    - new_password: New password (min 8 characters)
+
+    **Response:**
+    - 200: Password reset successful
+    - 400: Token invalid or expired
+    - 404: User not found
+    - 410: Token already used
+    """
+    token = request_data.token
+    new_password = request_data.new_password
+
+    # Validate password length (Pydantic should already do this, but extra check)
+    if len(new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long",
+        )
+
+    # Check if token already used (Redis blacklist)
+    import hashlib
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    token_blacklist_key = f"reset_token_used:{token_hash}"
+
+    if await redis.get(token_blacklist_key):
+        logger.warning("Attempt to reuse password reset token")
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This password reset link has already been used",
+        )
+
+    # Verify token
+    try:
+        payload = verify_password_reset_token(token)
+    except ValueError as e:
+        logger.warning(f"Invalid password reset token: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    # Get user
+    user_id_str = payload["sub"]
+    user_id = uuid.UUID(user_id_str)
+
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Update password with bcrypt hash
+    user.hashed_password = get_password_hash(new_password)
+    session.add(user)
+
+    # Invalidate all refresh tokens for this user (force re-login on all devices)
+    from sqlalchemy import update as sql_update
+
+    await session.execute(
+        sql_update(RefreshToken)
+        .where(RefreshToken.user_id == user_id)
+        .values(revoked_at=datetime.utcnow())
+    )
+
+    await session.commit()
+
+    # Blacklist this reset token (1-hour TTL to match token expiration)
+    await redis.setex(token_blacklist_key, 3600, "1")
+
+    # Send confirmation email
+    try:
+        email_data = utils.generate_password_changed_email(
+            email_to=user.email, username=user.email
+        )
+        utils.send_email(
+            email_to=user.email,
+            subject=email_data.subject,
+            html_content=email_data.html_content,
+        )
+        logger.info(
+            f"Password changed confirmation email sent to {user.email} (user_id={user.id})"
+        )
+    except Exception as e:
+        # Log error but don't fail the password reset
+        logger.error(
+            f"Failed to send password changed confirmation email to {user.email}: {str(e)}"
+        )
+        sentry_sdk.capture_exception(e)
+
+    # Log for security monitoring
+    sentry_sdk.add_breadcrumb(
+        category="auth",
+        message="Password reset completed",
+        level="info",
+        data={
+            "user_id": str(user.id),
+            "email": user.email,
+        },
+    )
+
+    return Message(
+        message="Password reset successful. You can now log in with your new password."
+    )

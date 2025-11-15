@@ -100,6 +100,39 @@ def generate_new_account_email(
     return EmailData(html_content=html_content, subject=subject)
 
 
+def generate_verification_email(email_to: str, token: str) -> EmailData:
+    project_name = settings.PROJECT_NAME
+    subject = f"{project_name} - Verify Your Email"
+    link = f"{settings.FRONTEND_HOST}/auth/verify?token={token}"
+    html_content = render_email_template(
+        template_name="verify_email.html",
+        context={
+            "project_name": settings.PROJECT_NAME,
+            "email": email_to,
+            "link": link,
+            "valid_hours": 24,
+        },
+    )
+    return EmailData(html_content=html_content, subject=subject)
+
+
+def generate_password_changed_email(email_to: str, username: str) -> EmailData:
+    project_name = settings.PROJECT_NAME
+    subject = f"{project_name} - Password Changed for user {username}"
+    # Generate timestamp in user-friendly format
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    html_content = render_email_template(
+        template_name="password_changed.html",
+        context={
+            "project_name": settings.PROJECT_NAME,
+            "username": username,
+            "email": email_to,
+            "timestamp": timestamp,
+        },
+    )
+    return EmailData(html_content=html_content, subject=subject)
+
+
 def generate_password_reset_token(email: str) -> str:
     delta = timedelta(hours=settings.EMAIL_RESET_TOKEN_EXPIRE_HOURS)
     now = datetime.now(timezone.utc)
