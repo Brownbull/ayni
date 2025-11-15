@@ -19,7 +19,7 @@ export default function ForgotPassword() {
     setError('')
 
     try {
-      await axios.post(`/api/v1/password-recovery/${encodeURIComponent(email)}`)
+      await axios.post('/api/v1/auth/reset-password', { email })
       setSubmitted(true)
     } catch (err) {
       // Even on error, show success message to prevent email enumeration
