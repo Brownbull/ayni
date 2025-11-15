@@ -54,6 +54,12 @@ def send_email(
     response = message.send(to=email_to, smtp=smtp_options)
     logger.info(f"send email result: {response}")
 
+    # Check if email was sent successfully
+    if response.status_code is None or response.status_code not in [250, 200]:
+        error_msg = f"Failed to send email to {email_to}. Status: {response.status_code}, Text: {response.status_text}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+
 
 def generate_test_email(email_to: str) -> EmailData:
     project_name = settings.PROJECT_NAME
