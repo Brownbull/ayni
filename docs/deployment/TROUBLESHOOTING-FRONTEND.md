@@ -171,6 +171,66 @@ Ensure Blueprint deployment or manual routing configuration applied (see above).
 
 ## API Connection Issues
 
+### Issue: API Requests Going to Wrong Domain (CRITICAL)
+
+**Symptom:**
+- API calls go to Render frontend domain instead of Railway backend
+- Network tab shows: `POST https://ayni-frontend.onrender.com/api/v1/...`
+- Backend doesn't receive the requests
+- Functionality works locally but not in production
+
+**Example Error:**
+Password reset email not sent, even though success message shows.
+
+**Root Cause:**
+Using raw `axios` instead of the configured `apiClient` in components.
+
+**Explanation:**
+- `apiClient` (from `frontend/src/api/client.ts`) is pre-configured with `baseURL` pointing to Railway backend
+- Raw `axios` uses relative URLs, which go to the current domain (Render frontend)
+- Render frontend is a static site and cannot proxy API requests
+
+**How to Identify:**
+Check component imports:
+```typescript
+// ❌ WRONG - Uses relative URLs
+import axios from 'axios'
+await axios.post('/api/v1/auth/reset-password', data)
+
+// ✅ CORRECT - Uses configured baseURL
+import { apiClient } from '../api/client'
+await apiClient.post('/auth/reset-password', data)
+```
+
+**Solution:**
+Replace all raw `axios` imports with `apiClient`:
+
+```typescript
+// Before:
+import axios from 'axios'
+await axios.post('/api/v1/auth/reset-password', { email })
+
+// After:
+import { apiClient } from '../api/client'
+await apiClient.post('/auth/reset-password', { email })
+```
+
+**Note:** Remove `/api/v1` prefix when using `apiClient` - it's already in the baseURL.
+
+**Verification:**
+1. Check browser DevTools → Network tab
+2. API requests should go to: `https://ayni-backend-production.up.railway.app/api/v1/...`
+3. NOT to: `https://ayni-frontend.onrender.com/api/v1/...`
+
+**Fixed in commit:** `b32236f`
+
+**Prevention:**
+- Always use `apiClient` for API calls, never raw `axios`
+- Code review checklist: Check all `axios.post/get/put/delete` calls
+- ESLint rule (recommended): Disallow direct axios imports
+
+---
+
 ### Issue: API Requests Fail - Network Error
 
 **Symptom:**
@@ -630,6 +690,7 @@ When something breaks:
 
 | Issue | Quick Fix |
 |-------|-----------|
+| **API calls to wrong domain** | **Use `apiClient` not raw `axios`** |
 | 404 on refresh | Configure SPA routing (Blueprint auto-fixes) |
 | TypeScript build error | Use type-only imports |
 | CORS error | Set FRONTEND_HOST in Railway backend |
