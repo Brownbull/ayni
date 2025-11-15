@@ -30,6 +30,7 @@ dependencies = [
     "flower>=2.0.1",
     "httpx-oauth>=0.16.1",
     "resend>=2.19.0",
+    "sendgrid>=6.12.5",
 ]
 
 [tool.uv]

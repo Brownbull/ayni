@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     # For Resend API (production):
     RESEND_API_KEY: str | None = None
 
+    # For SendGrid API (production alternative):
+    SENDGRID_API_KEY: str | None = None
+
     EMAILS_FROM_EMAIL: EmailStr | None = None
     EMAILS_FROM_NAME: str | None = None
 
@@ -122,10 +125,11 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def emails_enabled(self) -> bool:
-        # Email is enabled if either SMTP or Resend is configured
+        # Email is enabled if either SMTP, Resend, or SendGrid is configured
         has_smtp = bool(self.SMTP_HOST and self.EMAILS_FROM_EMAIL)
         has_resend = bool(self.RESEND_API_KEY and self.EMAILS_FROM_EMAIL)
-        return has_smtp or has_resend
+        has_sendgrid = bool(self.SENDGRID_API_KEY and self.EMAILS_FROM_EMAIL)
+        return has_smtp or has_resend or has_sendgrid
 
     EMAIL_TEST_USER: EmailStr = "test@example.com"
     FIRST_SUPERUSER: EmailStr

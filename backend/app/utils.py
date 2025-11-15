@@ -9,6 +9,8 @@ import jwt
 import resend
 from jinja2 import Template
 from jwt.exceptions import InvalidTokenError
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 from app.core import security
 from app.core.config import settings
@@ -39,8 +41,26 @@ def send_email(
 ) -> None:
     assert settings.emails_enabled, "no provided configuration for email variables"
 
-    # Use Resend API if configured (preferred for production)
-    if settings.RESEND_API_KEY:
+    # Use SendGrid API if configured (preferred for production)
+    if settings.SENDGRID_API_KEY:
+        try:
+            message = Mail(
+                from_email=f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>",
+                to_emails=email_to,
+                subject=subject,
+                html_content=html_content,
+            )
+            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+            response = sg.send(message)
+            logger.info(
+                f"SendGrid email sent successfully: status_code={response.status_code}"
+            )
+        except Exception as e:
+            error_msg = f"Failed to send email via SendGrid to {email_to}: {str(e)}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+    # Use Resend API if configured
+    elif settings.RESEND_API_KEY:
         resend.api_key = settings.RESEND_API_KEY
         try:
             params = {
@@ -55,7 +75,7 @@ def send_email(
             error_msg = f"Failed to send email via Resend to {email_to}: {str(e)}"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
-    # Fall back to SMTP if Resend is not configured
+    # Fall back to SMTP if neither SendGrid nor Resend is configured
     else:
         message = emails.Message(
             subject=subject,
