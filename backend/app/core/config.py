@@ -96,12 +96,18 @@ class Settings(BaseSettings):
             path=self.POSTGRES_DB,
         )
 
+    # Email Configuration - supports both SMTP and Resend API
+    # For SMTP (local development):
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
     SMTP_PORT: int = 587
     SMTP_HOST: str | None = None
     SMTP_USER: str | None = None
     SMTP_PASSWORD: str | None = None
+
+    # For Resend API (production):
+    RESEND_API_KEY: str | None = None
+
     EMAILS_FROM_EMAIL: EmailStr | None = None
     EMAILS_FROM_NAME: str | None = None
 
@@ -116,7 +122,10 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def emails_enabled(self) -> bool:
-        return bool(self.SMTP_HOST and self.EMAILS_FROM_EMAIL)
+        # Email is enabled if either SMTP or Resend is configured
+        has_smtp = bool(self.SMTP_HOST and self.EMAILS_FROM_EMAIL)
+        has_resend = bool(self.RESEND_API_KEY and self.EMAILS_FROM_EMAIL)
+        return has_smtp or has_resend
 
     EMAIL_TEST_USER: EmailStr = "test@example.com"
     FIRST_SUPERUSER: EmailStr

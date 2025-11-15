@@ -29,6 +29,7 @@ dependencies = [
     # "gabeda-core @ git+https://github.com/Brownbull/gabeda_core.git",
     "flower>=2.0.1",
     "httpx-oauth>=0.16.1",
+    "resend>=2.19.0",
 ]
 
 [tool.uv]

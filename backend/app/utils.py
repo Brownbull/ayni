@@ -6,6 +6,7 @@ from typing import Any
 
 import emails  # type: ignore
 import jwt
+import resend
 from jinja2 import Template
 from jwt.exceptions import InvalidTokenError
 
@@ -37,28 +38,47 @@ def send_email(
     html_content: str = "",
 ) -> None:
     assert settings.emails_enabled, "no provided configuration for email variables"
-    message = emails.Message(
-        subject=subject,
-        html=html_content,
-        mail_from=(settings.EMAILS_FROM_NAME, settings.EMAILS_FROM_EMAIL),
-    )
-    smtp_options = {"host": settings.SMTP_HOST, "port": settings.SMTP_PORT}
-    if settings.SMTP_TLS:
-        smtp_options["tls"] = True
-    elif settings.SMTP_SSL:
-        smtp_options["ssl"] = True
-    if settings.SMTP_USER:
-        smtp_options["user"] = settings.SMTP_USER
-    if settings.SMTP_PASSWORD:
-        smtp_options["password"] = settings.SMTP_PASSWORD
-    response = message.send(to=email_to, smtp=smtp_options)
-    logger.info(f"send email result: {response}")
 
-    # Check if email was sent successfully
-    if response.status_code is None or response.status_code not in [250, 200]:
-        error_msg = f"Failed to send email to {email_to}. Status: {response.status_code}, Text: {response.status_text}"
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
+    # Use Resend API if configured (preferred for production)
+    if settings.RESEND_API_KEY:
+        resend.api_key = settings.RESEND_API_KEY
+        try:
+            params = {
+                "from": f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>",
+                "to": [email_to],
+                "subject": subject,
+                "html": html_content,
+            }
+            response = resend.Emails.send(params)
+            logger.info(f"Resend email sent successfully: {response}")
+        except Exception as e:
+            error_msg = f"Failed to send email via Resend to {email_to}: {str(e)}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+    # Fall back to SMTP if Resend is not configured
+    else:
+        message = emails.Message(
+            subject=subject,
+            html=html_content,
+            mail_from=(settings.EMAILS_FROM_NAME, settings.EMAILS_FROM_EMAIL),
+        )
+        smtp_options = {"host": settings.SMTP_HOST, "port": settings.SMTP_PORT}
+        if settings.SMTP_TLS:
+            smtp_options["tls"] = True
+        elif settings.SMTP_SSL:
+            smtp_options["ssl"] = True
+        if settings.SMTP_USER:
+            smtp_options["user"] = settings.SMTP_USER
+        if settings.SMTP_PASSWORD:
+            smtp_options["password"] = settings.SMTP_PASSWORD
+        response = message.send(to=email_to, smtp=smtp_options)
+        logger.info(f"SMTP email result: {response}")
+
+        # Check if email was sent successfully
+        if response.status_code is None or response.status_code not in [250, 200]:
+            error_msg = f"Failed to send email via SMTP to {email_to}. Status: {response.status_code}, Text: {response.status_text}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
 
 def generate_test_email(email_to: str) -> EmailData:
