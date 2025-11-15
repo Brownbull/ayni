@@ -2,6 +2,7 @@
 
 Ayni is a multi-tenant SaaS platform that transforms retail analytics for Chilean and Latin American SMBs.
 
+
 ## Tech Stack
 
 ### Backend
