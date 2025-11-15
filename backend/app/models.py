@@ -276,3 +276,20 @@ class ResendVerificationRequest(SQLModel):
     email: EmailStr = Field(
         max_length=255, description="Email address to resend verification to"
     )
+
+
+class PasswordResetRequest(SQLModel):
+    """Request model for password reset"""
+
+    email: EmailStr = Field(
+        max_length=255, description="Email address to send password reset link to"
+    )
+
+
+class PasswordResetConfirm(SQLModel):
+    """Request model for password reset confirmation"""
+
+    token: str = Field(description="Password reset token from email")
+    new_password: str = Field(
+        min_length=8, description="New password (minimum 8 characters)"
+    )
