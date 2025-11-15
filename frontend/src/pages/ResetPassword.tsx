@@ -5,7 +5,7 @@
 
 import { useState, type FormEvent, useEffect } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
-import axios from 'axios'
+import { apiClient } from '../api/client'
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams()
@@ -60,7 +60,7 @@ export default function ResetPassword() {
     setIsSubmitting(true)
 
     try {
-      await axios.post('/api/v1/auth/confirm-reset', {
+      await apiClient.post('/auth/confirm-reset', {
         token,
         new_password: newPassword,
       })

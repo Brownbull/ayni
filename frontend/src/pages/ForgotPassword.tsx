@@ -5,7 +5,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import axios from 'axios'
+import { apiClient } from '../api/client'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -19,7 +19,7 @@ export default function ForgotPassword() {
     setError('')
 
     try {
-      await axios.post('/api/v1/auth/reset-password', { email })
+      await apiClient.post('/auth/reset-password', { email })
       setSubmitted(true)
     } catch (err) {
       // Even on error, show success message to prevent email enumeration
