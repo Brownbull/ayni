@@ -300,6 +300,89 @@ uv run pytest tests/test_oauth.py -v
 
 **Note:** OAuth is optional. If credentials are not configured, the endpoints return HTTP 503 and email/password authentication remains fully functional.
 
+## Password Reset Flow
+
+Ayni provides a secure password reset mechanism for users who forget their passwords.
+
+### How Password Reset Works
+
+1. **Request Reset**
+   - User clicks "Forgot Password" on login page
+   - Enters their email address
+   - System sends password reset email with time-limited token (1 hour expiration)
+   - **Security:** Always returns success message to prevent email enumeration
+
+2. **Reset Password**
+   - User clicks reset link from email
+   - Enters new password (minimum 8 characters)
+   - Token is validated and blacklisted to prevent reuse
+   - Password is updated with bcrypt hashing
+   - All existing sessions are invalidated (user must log in again)
+   - Confirmation email is sent notifying password change
+
+### Password Reset API Endpoints
+
+- `POST /api/v1/auth/reset-password` - Request password reset (send email)
+- `POST /api/v1/auth/confirm-reset` - Confirm password reset with token and new password
+
+### Security Features
+
+- **Token Expiration:** 1 hour (stricter than access tokens)
+- **Email Enumeration Prevention:** Same response for existing/non-existing emails
+- **Rate Limiting:** 3 password reset requests per hour per email
+- **Token Blacklist:** Reset tokens stored in Redis after use (prevents replay attacks)
+- **Session Invalidation:** All refresh tokens revoked after password change
+- **Password Validation:** Minimum 8 characters enforced
+- **Confirmation Email:** User notified after successful password change
+
+### Configuration
+
+Password reset requires the following environment variables:
+
+```bash
+# JWT Configuration (already configured for authentication)
+JWT_SECRET=your-64-character-random-secret
+EMAIL_RESET_TOKEN_EXPIRE_HOURS=1  # Token expires in 1 hour
+
+# Frontend URL for reset link generation
+FRONTEND_HOST=http://localhost:5173
+
+# Email Service Configuration (required for sending emails)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_TLS=true
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+EMAILS_FROM_EMAIL=noreply@ayni.cl
+EMAILS_FROM_NAME=Ayni
+
+# Redis (for token blacklist and rate limiting)
+REDIS_URL=redis://localhost:6379/0
+```
+
+### Testing Password Reset
+
+```bash
+# Run password reset tests
+cd backend
+uv run pytest tests/api/test_auth.py::test_password_reset_request_existing_email -v
+uv run pytest tests/api/test_auth.py::test_password_reset_confirm_success -v
+uv run pytest tests/api/test_auth.py::test_password_reset_sends_confirmation_email -v
+```
+
+### Email Templates
+
+Password reset uses two email templates:
+
+- `backend/app/email-templates/build/reset_password.html` - Password reset request email
+- `backend/app/email-templates/build/password_changed.html` - Password change confirmation email
+
+Both templates include:
+- Project branding
+- User-friendly instructions
+- Security recommendations
+- Timestamp information
+
 ## Running Tests
 
 ### Backend Tests
