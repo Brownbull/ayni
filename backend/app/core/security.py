@@ -160,6 +160,72 @@ def verify_email_token(token: str) -> str:
         raise ValueError(f"Invalid verification token: {str(e)}")
 
 
+def create_password_reset_token(
+    user_id: str | Any,
+    email: str,
+    expires_delta: timedelta | None = None,
+) -> str:
+    """
+    Create JWT password reset token with 1-hour expiration.
+
+    Args:
+        user_id: User ID (UUID as string)
+        email: User email address
+        expires_delta: Token expiration time (default: 1 hour)
+
+    Returns:
+        Encoded JWT password reset token
+    """
+    if expires_delta is None:
+        expires_delta = timedelta(hours=1)
+
+    expire = datetime.utcnow() + expires_delta
+    to_encode = {
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "sub": str(user_id),
+        "email": email,
+        "type": "password_reset",
+    }
+
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def verify_password_reset_token(token: str) -> dict[str, Any]:
+    """
+    Decode and validate password reset token.
+
+    Args:
+        token: JWT password reset token string
+
+    Returns:
+        Token payload dictionary with user_id and email
+
+    Raises:
+        ValueError: If token is expired, invalid, or wrong type
+    """
+    try:
+        payload = decode_token(token)
+
+        # Validate token type
+        if payload.get("type") != "password_reset":
+            raise ValueError("Invalid token type")
+
+        user_id = payload.get("sub")
+        email = payload.get("email")
+
+        if not user_id or not email:
+            raise ValueError("Missing user_id or email in token")
+
+        return payload
+
+    except jwt.ExpiredSignatureError:
+        raise ValueError("Password reset token expired")
+    except jwt.InvalidTokenError as e:
+        raise ValueError(f"Invalid password reset token: {str(e)}")
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
